@@ -88,7 +88,7 @@ void loop() {
 
       // Update speed
       speedPercentage = inputValue;
-      pwmDuty = map(speedPercentage, 0, 100, 0, 255); // Map speed percentage to PWM duty cycle
+      pwmDuty = map(speedPercentage, 0, 100, 194, 253); // Map speed percentage to PWM duty cycle
       ledcWrite(pwmChannel, pwmDuty);
 
       Serial.print("Speed set to ");

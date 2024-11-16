@@ -26,7 +26,7 @@
 #include <ArduinoJson.h>
 
 // PWM Configuration
-const int pwmFreq = 5000;
+const int pwmFreq = 500;
 const int pwmResolution = 8;     // 8-bit resolution (0-255)
 const int pwmChannel = 0;        // LEDC channel (0-15)
 const int pwmPin = 18;

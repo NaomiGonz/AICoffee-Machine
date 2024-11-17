@@ -5,7 +5,7 @@
 
   Description:
   This sketch allows you to control a KEURIG K25 Water Pump 12V CJWP27-AC12C6B
-  using an L298N (H-bridge control baord). It cycles with turing the water
+  using an L298N (H-bridge control board). It cycles with turning the water
   pump on and off as an intial test to see how much water can be moved
   in a fixed time period. 
 

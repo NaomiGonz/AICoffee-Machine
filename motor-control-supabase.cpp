@@ -5,7 +5,7 @@
 
   Description:
   This sketch allows you to control the speed of a motor via an ESC
-  using a 5kHz PWM signal. The user can input a desired speed percentage
+  using a 500Hz PWM signal. The user can input a desired speed percentage
   (0-100%) through the Serial Monitor. It also uploads the speed percentage
   and the time between speed settings to a Supabase database.
 

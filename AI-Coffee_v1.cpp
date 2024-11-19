@@ -1,15 +1,11 @@
 /*
   Coffee Machine Control v1
-  Author: Naomi Gonzalez and Krish Shah
+  Author: Naomi Gonzalez 
   Date: Nov 2024
 
   Description:
-  This sketch allows you to control first prototype of AI Coffee.
-  It controls a motor to brew the coffee inside the centrifugal drum using a Readytosky 40A ESC.
-  It controls water amount to brew coffee using a KEURIG K25 Water Pump 12V CJWP27-AC12C6B with L298N.
-  Commands are input via the Serial Monitor in the pattern "R-100 D-5 V-25 R-0 D-10".
-  It manages motor speed, pump volume, delays, and queues up to 3 pump commands.
-  It also logs relevant data to a Supabase database.
+  This sketch allows you to control the first prototype of AI Coffee.
+  It manages motor speed, pump volume, delays, and logs relevant data to a Supabase database in structured JSON format.
 
   Connections:
   - Motor Control (Readytosky 40A ESC)
@@ -36,24 +32,24 @@
 #include <ArduinoJson.h>
 
 // ------------------- Pin Definitions and Constants ----------------------
-#define PWM_FREQ        500
-#define PWM_RESOLUTION  8
-#define PWM_CHANNEL     0
-#define PWM_PIN         18
+#define PWM_FREQ        500         // PWM frequency for motor control
+#define PWM_RESOLUTION  8           // 8-bit resolution (0-255)
+#define PWM_CHANNEL     0           // LEDC channel (0-15)
+#define PWM_PIN         18          // GPIO PIN for motor PWM
 
-#define PUMP_IN1_PIN    16
-#define PUMP_IN2_PIN    17
+#define PUMP_IN1_PIN    16          // GPIO PIN 16 for pump control (IN1)
+#define PUMP_IN2_PIN    17          // GPIO PIN 17 for pump control (IN2)
 
-#define COMMAND_QUEUE_SIZE 20
+#define COMMAND_QUEUE_SIZE 20       // Size of the command queue
 
 // -------------------- WiFi and Supabase Configuration -------------------
-#define WIFI_SSID       "your_wifi_ssid"             
-#define WIFI_PASSWORD   "your_wifi_password"                 
+#define WIFI_SSID       "your_wifi_ssid"             // Your WiFi SSID
+#define WIFI_PASSWORD   "your_wifi_password"         // Your WiFi password
 
-#define SUPABASE_URL    "https://oalhkndyagbfonwjnqya.supabase.co/rest/v1/control_parameters"
-#define SUPABASE_KEY    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hbGhrbmR5YWdiZm9ud2pucXlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzEwMTM4OTIsImV4cCI6MjA0NjU4OTg5Mn0.lxSq85mwUwJMlbRlJfX6Z9HoY5r01E2kxW9DYFLvrCQ"
+#define SUPABASE_URL    "https://oalhkndyagbfonwjnqya.supabase.co/rest/v1/control_parameters"  // Supabase endpoint
+#define SUPABASE_KEY    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hbGhrbmR5YWdiZm9ud2pucXlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzEwMTM4OTIsImV4cCI6MjA0NjU4OTg5Mn0.lxSq85mwUwJMlbRlJfX6Z9HoY5r01E2kxW9DYFLvrCQ"         // Supabase API key
 
-// ------------------------------------------------------------------------
+// ------------------------- Command Types and State ----------------------
 enum CommandType {
   CMD_R,   // Set motor RPM
   CMD_D,   // Delay
@@ -71,14 +67,17 @@ int commandQueueFront = 0;
 int commandQueueRear = 0;
 int commandQueueCount = 0;
 
-// States
-bool isPumping = false;
-unsigned long pumpEndTime = 0;
-unsigned long pumpVolume = 0;
-bool isDelaying = false;
-unsigned long delayEndTime = 0;
-int currentSpeed = 0;
+// State Variables
+bool isPumping = false;           // Pump state
+unsigned long pumpEndTime = 0;    // End time for pumping
+unsigned long pumpVolume = 0;     // Volume to pump
 
+bool isDelaying = false;          // Delay state
+unsigned long delayEndTime = 0;   // End time for delay
+
+int currentSpeed = 0;             // Current motor speed percentage
+
+// ---------------------- Function Prototypes -----------------------------
 void enqueueCommand(Command cmd);
 bool dequeueCommand(Command &cmd);
 void parseInputString(String input);
@@ -87,6 +86,7 @@ void setMotorSpeed(int speedPercentage);
 void startPump(unsigned long volume_ml);
 void uploadData(int coffeeRunId, const char* input_json, const char* time_json);
 
+// ------------------------- Arduino Setup --------------------------------
 void setup() {
   Serial.begin(115200);
   while (!Serial) { ; }
@@ -118,7 +118,9 @@ void setup() {
   Serial.println("-------------------------------------------------");
 }
 
+// -------------------------- Arduino Loop --------------------------------
 void loop() {
+  // Check for serial input
   if (Serial.available()) {
     String input = Serial.readStringUntil('\n');
     input.trim();
@@ -127,6 +129,7 @@ void loop() {
     }
   }
 
+  // Execute next command if not delaying
   if (!isDelaying && commandQueueCount > 0) {
     Command nextCmd;
     if (dequeueCommand(nextCmd)) {
@@ -134,6 +137,7 @@ void loop() {
     }
   }
 
+  // Stop pump after the scheduled duration
   if (isPumping && millis() >= pumpEndTime) {
     digitalWrite(PUMP_IN1_PIN, LOW);
     digitalWrite(PUMP_IN2_PIN, LOW);
@@ -141,14 +145,16 @@ void loop() {
     isPumping = false;
   }
 
+  // End delay if the scheduled time has passed
   if (isDelaying && millis() >= delayEndTime) {
     Serial.println("Delay completed.");
     isDelaying = false;
   }
 
-  delay(10);
+  delay(10); // Small delay to stabilize loop
 }
 
+// ------------------------ Command Queue Functions -----------------------
 void enqueueCommand(Command cmd) {
   if (commandQueueCount < COMMAND_QUEUE_SIZE) {
     commandQueue[commandQueueRear] = cmd;
@@ -169,6 +175,7 @@ bool dequeueCommand(Command &cmd) {
   return false;
 }
 
+// ------------------------ Input Parsing Functions -----------------------
 void parseInputString(String input) {
   Serial.print("Received Input: ");
   Serial.println(input);
@@ -183,6 +190,7 @@ void parseInputString(String input) {
     processToken(token);
   }
 
+  // Process the last token
   String lastToken = input.substring(startIdx);
   processToken(lastToken);
 
@@ -222,6 +230,7 @@ void processToken(String token) {
   }
 }
 
+// ------------------------- Command Handlers -----------------------------
 void handleCommand(Command cmd) {
   switch (cmd.type) {
     case CMD_R:
@@ -253,6 +262,7 @@ void setMotorSpeed(int speedPercentage) {
   Serial.print(speedPercentage);
   Serial.println("%");
 
+  // Upload data for motor control
   char input_json[128];
   snprintf(input_json, sizeof(input_json), R"({"letter": "R", "value": %d})", speedPercentage);
   uploadData(1, input_json, "{}");
@@ -270,12 +280,14 @@ void startPump(unsigned long volume_ml) {
   Serial.print(volume_ml);
   Serial.println(" ml.");
 
+  // Upload data for pump control
   char input_json[128], time_json[128];
   snprintf(input_json, sizeof(input_json), R"({"letter": "V", "value": %lu})", volume_ml);
   snprintf(time_json, sizeof(time_json), R"({"delay": 0, "duration": %.2f})", duration_ms / 1000.0);
   uploadData(1, input_json, time_json);
 }
 
+// ---------------------- Supabase Data Upload ----------------------------
 void uploadData(int coffeeRunId, const char* input_json, const char* time_json) {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
@@ -285,9 +297,9 @@ void uploadData(int coffeeRunId, const char* input_json, const char* time_json) 
     http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
 
     StaticJsonDocument<512> json;
-    json["coffee_run_id"] = coffeeRunId;
-    json["input"] = input_json;
-    json["time"] = time_json;
+    json["coffee_run_id"] = coffeeRunId; // Autogenerated coffee run ID
+    json["input"] = input_json;         // Input JSON
+    json["time"] = time_json;           // Time JSON
 
     String requestBody;
     serializeJson(json, requestBody);

@@ -8,9 +8,9 @@ const char* SUPABASE_URL = "https://oalhkndyagbfonwjnqya.supabase.co/rest/v1/cof
 const char* SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hbGhrbmR5YWdiZm9ud2pucXlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzEwMTM4OTIsImV4cCI6MjA0NjU4OTg5Mn0.lxSq85mwUwJMlbRlJfX6Z9HoY5r01E2kxW9DYFLvrCQ";
 
 // WiFi Configuration for Eduroam
-const char* WIFI_SSID = "";
+const char* WIFI_SSID = "Krish";
 //const char* WIFI_USERNAME = "kshah26@bu.edu";
-const char* WIFI_PASSWORD = "";
+const char* WIFI_PASSWORD = "krish999";
 
 void connectToWiFi() {
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);

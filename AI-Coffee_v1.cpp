@@ -1,6 +1,6 @@
 /*
   Coffee Machine Control v1
-  Author: Naomi Gonzalez 
+  Author: Naomi Gonzalez and Krish Shah
   Date: Nov 2024
 
   Description:
@@ -36,24 +36,22 @@
 #include <ArduinoJson.h>
 
 // ------------------- Pin Definitions and Constants ----------------------
-#define PWM_FREQ        500         // PWM Hz frequency for motor control
-#define PWM_RESOLUTION  8           // 8-bit resolution (0-255)
-#define PWM_CHANNEL     0           // LEDC channel (0-15)
-#define PWM_PIN         18          // GPIO PIN for motor PWM
+#define PWM_FREQ        500
+#define PWM_RESOLUTION  8
+#define PWM_CHANNEL     0
+#define PWM_PIN         18
 
-#define PUMP_IN1_PIN    16          // GPIO PIN 16 for pump control (IN1)
-#define PUMP_IN2_PIN    17          // GPIO PIN 17 for pump control (IN2)
+#define PUMP_IN1_PIN    16
+#define PUMP_IN2_PIN    17
 
 #define COMMAND_QUEUE_SIZE 20
 
 // -------------------- WiFi and Supabase Configuration -------------------
-/*
-#define WIFI_SSID       "fill_here"             
-#define WIFI_PASSWORD   "fill_here"                 
+#define WIFI_SSID       "your_wifi_ssid"             
+#define WIFI_PASSWORD   "your_wifi_password"                 
 
-#define SUPABASE_URL    "fill_here"
-#define SUPABASE_KEY    "fill_here" 
-*/
+#define SUPABASE_URL    "https://oalhkndyagbfonwjnqya.supabase.co/rest/v1/control_parameters"
+#define SUPABASE_KEY    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hbGhrbmR5YWdiZm9ud2pucXlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzEwMTM4OTIsImV4cCI6MjA0NjU4OTg5Mn0.lxSq85mwUwJMlbRlJfX6Z9HoY5r01E2kxW9DYFLvrCQ"
 
 // ------------------------------------------------------------------------
 enum CommandType {
@@ -73,16 +71,12 @@ int commandQueueFront = 0;
 int commandQueueRear = 0;
 int commandQueueCount = 0;
 
-// Pump State
+// States
 bool isPumping = false;
 unsigned long pumpEndTime = 0;
 unsigned long pumpVolume = 0;
-
-// Delay State
 bool isDelaying = false;
 unsigned long delayEndTime = 0;
-
-// Motor State
 int currentSpeed = 0;
 
 void enqueueCommand(Command cmd);
@@ -91,7 +85,7 @@ void parseInputString(String input);
 void handleCommand(Command cmd);
 void setMotorSpeed(int speedPercentage);
 void startPump(unsigned long volume_ml);
-//void uploadData(int rpm, double duration_s, unsigned long volume_pumped, double actual_pump_time_s);
+void uploadData(int coffeeRunId, const char* input_json, const char* time_json);
 
 void setup() {
   Serial.begin(115200);
@@ -108,7 +102,6 @@ void setup() {
   digitalWrite(PUMP_IN1_PIN, LOW);
   digitalWrite(PUMP_IN2_PIN, LOW); // Pump off
 
-  /*
   // Connect to WiFi
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("Connecting to WiFi");
@@ -117,17 +110,15 @@ void setup() {
     Serial.print(".");
   }
   Serial.println("\nConnected to WiFi");
-  */ 
-  
+
   // Welcome Message
   Serial.println("-------------------------------------------------");
-  Serial.println("Team 3: AI Coffee v1.0.0");
+  Serial.println("AI Coffee Machine v1.0.0");
   Serial.println("Enter commands in the pattern: R-100 D-5 V-25 R-0 D-10");
   Serial.println("-------------------------------------------------");
 }
 
-void loop(){
-  // Check for serial input
+void loop() {
   if (Serial.available()) {
     String input = Serial.readStringUntil('\n');
     input.trim();
@@ -136,7 +127,6 @@ void loop(){
     }
   }
 
-  // Execute commands if not in DELAY state
   if (!isDelaying && commandQueueCount > 0) {
     Command nextCmd;
     if (dequeueCommand(nextCmd)) {
@@ -144,20 +134,13 @@ void loop(){
     }
   }
 
-  // Handle Pumping
   if (isPumping && millis() >= pumpEndTime) {
-    // Stop Pump
     digitalWrite(PUMP_IN1_PIN, LOW);
     digitalWrite(PUMP_IN2_PIN, LOW);
-    unsigned long actualPumpTime = (pumpEndTime - (pumpVolume * 3000UL / 25UL)) - (pumpEndTime - millis());
     Serial.println("Pump OFF.");
-
-    //uploadData(currentSpeed, 0, pumpVolume, actualPumpTime / 1000.0);
-
     isPumping = false;
   }
 
-  // Handle Delay
   if (isDelaying && millis() >= delayEndTime) {
     Serial.println("Delay completed.");
     isDelaying = false;
@@ -165,8 +148,6 @@ void loop(){
 
   delay(10);
 }
-
-// --------------------------- Command Queue Functions ---------------------------
 
 void enqueueCommand(Command cmd) {
   if (commandQueueCount < COMMAND_QUEUE_SIZE) {
@@ -188,13 +169,10 @@ bool dequeueCommand(Command &cmd) {
   return false;
 }
 
-// --------------------------- Input Parsing Function ---------------------------
-
 void parseInputString(String input) {
   Serial.print("Received Input: ");
   Serial.println(input);
 
-  // Split the input string by spaces
   int startIdx = 0;
   int spaceIdx = input.indexOf(' ');
 
@@ -202,46 +180,19 @@ void parseInputString(String input) {
     String token = input.substring(startIdx, spaceIdx);
     startIdx = spaceIdx + 1;
     spaceIdx = input.indexOf(' ', startIdx);
-
-    if (token.length() > 2 && token.charAt(1) == '-') {
-      char cmdType = token.charAt(0);
-      String valueStr = token.substring(2);
-      int value = valueStr.toInt();
-      Command cmd;
-
-      switch (cmdType) {
-        case 'R':
-          cmd.type = CMD_R;
-          cmd.value = value;
-          enqueueCommand(cmd);
-          break;
-        case 'D':
-          cmd.type = CMD_D;
-          cmd.value = value;
-          enqueueCommand(cmd);
-          break;
-        case 'V':
-          cmd.type = CMD_V;
-          cmd.value = value;
-          enqueueCommand(cmd);
-          break;
-        default:
-          Serial.print("Unknown command type: ");
-          Serial.println(cmdType);
-          break;
-      }
-    } else {
-      Serial.print("Invalid command format: ");
-      Serial.println(token);
-    }
+    processToken(token);
   }
 
-  // Handle the last token
   String lastToken = input.substring(startIdx);
-  if (lastToken.length() > 2 && lastToken.charAt(1) == '-') {
-    char cmdType = lastToken.charAt(0);
-    String valueStr = lastToken.substring(2);
-    int value = valueStr.toInt();
+  processToken(lastToken);
+
+  Serial.println("Commands enqueued.");
+}
+
+void processToken(String token) {
+  if (token.length() > 2 && token.charAt(1) == '-') {
+    char cmdType = token.charAt(0);
+    int value = token.substring(2).toInt();
     Command cmd;
 
     switch (cmdType) {
@@ -265,15 +216,11 @@ void parseInputString(String input) {
         Serial.println(cmdType);
         break;
     }
-  } else if (lastToken.length() > 0) {
+  } else {
     Serial.print("Invalid command format: ");
-    Serial.println(lastToken);
+    Serial.println(token);
   }
-
-  Serial.println("Commands enqueued.");
 }
-
-// --------------------------- Command Handler Function ---------------------------
 
 void handleCommand(Command cmd) {
   switch (cmd.type) {
@@ -288,12 +235,7 @@ void handleCommand(Command cmd) {
       Serial.println(" seconds.");
       break;
     case CMD_V:
-      if (!isPumping) {
-        startPump(cmd.value);
-      } else {
-        Serial.println("Skipped command because pump is still running.");
-        // Do not send data to DB
-      }
+      startPump(cmd.value);
       break;
     default:
       Serial.println("Unhandled command type.");
@@ -301,14 +243,9 @@ void handleCommand(Command cmd) {
   }
 }
 
-// --------------------------- Motor Control Function ---------------------------
-
 void setMotorSpeed(int speedPercentage) {
   speedPercentage = constrain(speedPercentage, 0, 100);
-
-  // Map speed percentage to PWM duty cycle
   int pwmDuty = map(speedPercentage, 0, 100, 191, 253);
-
   ledcWrite(PWM_CHANNEL, pwmDuty);
   currentSpeed = speedPercentage;
 
@@ -316,16 +253,13 @@ void setMotorSpeed(int speedPercentage) {
   Serial.print(speedPercentage);
   Serial.println("%");
 
-  //uploadData(currentSpeed, 0, 0, 0); // change?
+  char input_json[128];
+  snprintf(input_json, sizeof(input_json), R"({"letter": "R", "value": %d})", speedPercentage);
+  uploadData(1, input_json, "{}");
 }
 
-// --------------------------- Pump Control Function ---------------------------
-
 void startPump(unsigned long volume_ml) {
-  // Calculate pump duration based on 25ml per 3 seconds
   unsigned long duration_ms = (volume_ml * 3000UL) / 25UL;
-
-  // Start Pump
   digitalWrite(PUMP_IN1_PIN, HIGH);
   digitalWrite(PUMP_IN2_PIN, LOW);
   pumpEndTime = millis() + duration_ms;
@@ -336,13 +270,13 @@ void startPump(unsigned long volume_ml) {
   Serial.print(volume_ml);
   Serial.println(" ml.");
 
-  //uploadData(currentSpeed, 0, pumpVolume, duration_ms / 1000.0); // change?
+  char input_json[128], time_json[128];
+  snprintf(input_json, sizeof(input_json), R"({"letter": "V", "value": %lu})", volume_ml);
+  snprintf(time_json, sizeof(time_json), R"({"delay": 0, "duration": %.2f})", duration_ms / 1000.0);
+  uploadData(1, input_json, time_json);
 }
 
-// --------------------------- Data Upload Function ---------------------------
-
-/*
-void uploadData(int rpm, double duration_s, unsigned long volume_pumped, double actual_pump_time_s) {
+void uploadData(int coffeeRunId, const char* input_json, const char* time_json) {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
     http.begin(SUPABASE_URL);
@@ -350,19 +284,15 @@ void uploadData(int rpm, double duration_s, unsigned long volume_pumped, double 
     http.addHeader("apikey", SUPABASE_KEY);
     http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
 
-    // Prepare JSON payload
-    StaticJsonDocument<256> json;
-    json["rpm"] = rpm;
-    json["duration_s"] = duration_s;
-    json["volume_pumped_ml"] = volume_pumped;
-    json["actual_pump_time_s"] = actual_pump_time_s;
+    StaticJsonDocument<512> json;
+    json["coffee_run_id"] = coffeeRunId;
+    json["input"] = input_json;
+    json["time"] = time_json;
 
     String requestBody;
     serializeJson(json, requestBody);
 
-    // Send POST request
     int httpResponseCode = http.POST(requestBody);
-
     if (httpResponseCode > 0) {
       Serial.print("Data uploaded successfully. HTTP Response code: ");
       Serial.println(httpResponseCode);
@@ -376,4 +306,3 @@ void uploadData(int rpm, double duration_s, unsigned long volume_pumped, double 
     Serial.println("WiFi not connected. Unable to upload data.");
   }
 }
-*/

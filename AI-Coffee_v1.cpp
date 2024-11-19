@@ -1,6 +1,6 @@
 /*
   Coffee Machine Control v1
-  Author: Naomi Gonzalez 
+  Author: Naomi and Krish
   Date: Nov 2024
 
   Description:

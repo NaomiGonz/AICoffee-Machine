@@ -6,6 +6,7 @@
   Description:
   This sketch allows you to control the first prototype of AI Coffee.
   It manages motor speed, pump volume, delays, and logs relevant data to a Supabase database in structured JSON format.
+  Commands are input via the Serial Monitor in the pattern "R-100 D-5 V-25 R-0 D-10".
 
   Connections:
   - Motor Control (Readytosky 40A ESC)

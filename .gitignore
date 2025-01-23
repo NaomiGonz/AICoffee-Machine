@@ -118,3 +118,5 @@ node_modules/
 .vscode/
 .idea/
 
+# Ignore vendor directories
+AICoffeeApp/vendor/

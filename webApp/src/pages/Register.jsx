@@ -35,7 +35,7 @@ const Register = () => {
 
   return (
     <main 
-      className="w-full h-screen flex items-center justify-center" 
+      className="flex items-center justify-center" 
       style={{ backgroundColor: '#CAF7E2' }}
     >
       <div 

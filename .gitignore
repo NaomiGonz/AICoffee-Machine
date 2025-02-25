@@ -49,4 +49,4 @@ node_modules/
 .vscode/
 .idea/
 
-firebase.js
+.env

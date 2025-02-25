@@ -6,7 +6,7 @@ import Logo from '../assets/logo.svg';
 const Welcome = () => {
   return (
     <div 
-      className="bg-mint flex flex-col items-center justify-center h-screen w-screen" 
+      className="flex flex-col items-center justify-center h-screen w-screen" 
     >
       <img src={Logo} alt="AI Coffee Logo" className="w-40 h-40 mb-8" />
       <h1 className="text-4xl font-bold mb-8" style={{ color: '#4A442D' }}>

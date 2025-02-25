@@ -8,3 +8,7 @@
     --color-espresso: #4A442D;
     --color-hgreen: #386150;
   }
+
+  body {
+    background-color: #CAF7E2;
+  }

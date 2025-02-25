@@ -3,6 +3,7 @@ import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../tools/AuthProvider.jsx';
 import { signIn, signInWithGoogle } from '../tools/auth';
 import Button from '../components/Button.jsx';
+import googleIcon from '../assets/google-3.png';
 
 const Login = () => {
   const { userLoggedIn } = useAuth();
@@ -109,7 +110,7 @@ const Login = () => {
           color="#58B09C" // Latte (secondary button color)
           transparent={false}
           className="w-full"
-          image="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCA0OCA0OCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZyBjbGlwUGF0aD0idXJsKCNjbGlwXzEiKSI+CiAgICA8cGF0aCBkPSJNNDcuNTMyIDI0LjU1MjhDNDUuNTMyIDIyLjkxNDQgNDUuMzk3NyAyMS4yODEgNDUuMTE3NSAxOS42NzYxSDEyNC40OFYyOC45MTgxSDM3LjQ0MzRDMzYuOTA1NSA0MS44OTg4IDM1LjE3IDQ0LjUzNTYgMzIuNjQ2MSA0Ni4yMTExVjQyLjIwNzhaIiBmaWxsPSIjNDI4NUY0Ii8+CiAgICA8cGF0aCBkPSJNMTI0LjQ4MCA0OC4wMDE2QzMwLjk1MjkgNDguMDAxNiAzNi40MTE2IDQ1Ljg3NjQgNDAuMzg4OCA0Mi4yMDc4TDMyLjY1NDkgMzYuMjExQzMwLjUwMzEgMzcuNjc1IDI3LjcyNTIgMzguNTAzOSA0NC40ODg4IDM4LjUwMzlaTDE4LjAwNzMgMzguNTAzOVoiIGZpbGw9IiMzNEE4OTkiLz4KICA8L2c+Cjwvc3ZnPgo="
+          image={googleIcon}
         />
       </div>
     </main>

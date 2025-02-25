@@ -39,7 +39,7 @@ const Register = () => {
       style={{ backgroundColor: '#CAF7E2' }}
     >
       <div 
-        className="w-96 space-y-5 p-6 shadow-xl border rounded-xl" 
+        className="w-96 space-y-5 p-6 shadow-xl border rounded-xl mt-30" 
         style={{ borderColor: '#3D3522', backgroundColor: '#FFF', color: '#4A442D' }}
       >
         <div className="text-center mb-6">

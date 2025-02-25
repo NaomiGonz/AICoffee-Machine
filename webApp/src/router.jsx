@@ -5,6 +5,9 @@ import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
 import Home from "./pages/Home.jsx";
 import ProtectedRoute from "./tools/ProtectedRoute.jsx";
+import Machine from "./pages/Machine.jsx";
+import Account from "./pages/Account.jsx";
+import CoffeeDetails from "./pages/CoffeeDetails.jsx";
 
 const router = createBrowserRouter([
   {
@@ -29,6 +32,30 @@ const router = createBrowserRouter([
         <ProtectedRoute>
           <Home />
         </ProtectedRoute>,
+      },
+      {
+        path: "machine",
+        element: (
+          <ProtectedRoute>
+            <Machine />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "account",
+        element: (
+          <ProtectedRoute>
+            <Account />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "coffee/:coffeeId",
+        element: (
+          <ProtectedRoute>
+            <CoffeeDetails />
+          </ProtectedRoute>
+        ),
       }
     ],
   },

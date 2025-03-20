@@ -116,14 +116,14 @@ async def calculate_brew(
         }
 
         # Generate command string for ESP32
-        command_str = ml_output_to_command(brew_result)
+        command_str = ml_output_to_command(prediction)
 
         # Send to ESP32
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 esp_response = await client.post(
                     "http://aicoffee.local/command",  # Or ESP32's IP
-                    data={"cmd": command_str}
+                    data={"cmd": command_str},
                     auth=BasicAuth("admin", "brewsecure123")
                 )
                 esp_response.raise_for_status()

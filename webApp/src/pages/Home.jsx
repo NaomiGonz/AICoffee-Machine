@@ -55,8 +55,29 @@ const Home = () => {
   const [strength, setStrength] = useState(5);
   const [fruitiness, setFruitiness] = useState(5);
 
-  const handleBrew = () => {
-    alert("Brewing with your custom settings!");
+  const handleBrew = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/brew', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bitterness,
+          acidity,
+          sweetness,
+          strength,
+          fruitiness
+        })
+      });
+      
+      const data = await response.json();
+      alert(`Brew Settings:
+        Temperature: ${data.temperature}°C
+        Water: ${data.water_ml}ml
+        Pressure: ${data.pressure_bars} bars
+        Beans: ${JSON.stringify(data.beans)}`);
+    } catch (error) {
+      alert('Error calculating brew settings');
+    }
   };
 
   return (

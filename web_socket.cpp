@@ -95,6 +95,9 @@
 #define SUPABASE_URL    "https://oalhkndyagbfonwjnqya.supabase.co/rest/v1/control_parameters"  // Supabase endpoint
 #define SUPABASE_KEY    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hbGhrbmR5YWdiZm9ud2pucXlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzEwMTM4OTIsImV4cCI6MjA0NjU4OTg5Mn0.lxSq85mwUwJMlbRlJfX6Z9HoY5r01E2kxW9DYFLvrCQ"       // Supabase API key
 
+#define ESP_USERNAME "admin"
+#define ESP_PASSWORD "brewsecure123"
+
 // ------------------------- Command Types and State ----------------------
 enum CommandType {
   CMD_R,   // Set motor RPM
@@ -422,6 +425,16 @@ void parseInputString(String input) {
   Serial.println(message);
   responseBuffer += message + "\n";
 
+  // Validate command format
+  if (input.indexOf('R-') == -1 && 
+      input.indexOf('D-') == -1 && 
+      input.indexOf('V-') == -1) {
+    message = "Error: Invalid command format. Must contain R-/D-/V- commands";
+    Serial.println(message);
+    responseBuffer += message + "\n";
+    return;
+  }
+
   int startIdx = 0;
   int spaceIdx = input.indexOf(' ');
 
@@ -477,27 +490,74 @@ void processToken(String token) {
 }
 
 // ------------------------- Command Handlers -----------------------------
-void handleCommand(Command cmd) {
-  switch (cmd.type) {
-    case CMD_R:
-      setMotorSpeed(cmd.value);
-      break;
-    case CMD_D:
-      isDelaying = true;
-      delayEndTime = millis() + cmd.value * 1000UL;
-      String message = "Delaying for " + String(cmd.value) + " seconds.";
+void handleCommand() {
+  // Basic Authentication Check
+  if (!server.authenticate(ESP_USERNAME, ESP_PASSWORD)) {
+    server.requestAuthentication();
+    return;
+  }
+
+  if (!server.hasArg("cmd")) {
+    server.send(400, "text/plain", "Bad Request: Missing 'cmd' parameter");
+    return;
+  }
+  
+  String cmd = server.arg("cmd");
+  if (cmd.length() == 0) {
+    server.send(400, "text/plain", "Bad Request: Empty command");
+    return;
+  }
+  
+  // Clear previous response buffer and parse the input
+  responseBuffer = "";
+  responseReady = false;
+  parseInputString(cmd);
+  
+  // Wait for commands to complete (with timeout)
+  unsigned long startTime = millis();
+  const unsigned long maxWaitTime = 30000; // 30 seconds max wait
+  
+  while (!responseReady && 
+         (isDelaying || isPumping || commandQueueCount > 0) && 
+         (millis() - startTime < maxWaitTime)) {
+    // Process commands while waiting
+    server.handleClient();
+    
+    // If not delaying, execute next command
+    if (!isDelaying && commandQueueCount > 0) {
+      Command nextCmd;
+      if (dequeueCommand(nextCmd)) {
+        handleCommand(nextCmd);
+      }
+    }
+    
+    // Stop pump after the scheduled duration
+    if (isPumping && millis() >= pumpEndTime) {
+      digitalWrite(PUMP_IN1_PIN, LOW);
+      digitalWrite(PUMP_IN2_PIN, LOW);
+      String message = "Pump OFF.";
       Serial.println(message);
       responseBuffer += message + "\n";
-      break;
-    case CMD_V:
-      startPump(cmd.value);
-      break;
-    default:
-      String errorMsg = "Unhandled command type.";
-      Serial.println(errorMsg);
-      responseBuffer += errorMsg + "\n";
-      break;
+      isPumping = false;
+    }
+    
+    // End delay if the scheduled time has passed
+    if (isDelaying && millis() >= delayEndTime) {
+      String message = "Delay completed.";
+      Serial.println(message);
+      responseBuffer += message + "\n";
+      isDelaying = false;
+    }
+    
+    delay(10);
   }
+  
+  // If timed out or all commands processed, send response
+  if (responseBuffer.length() == 0) {
+    responseBuffer = "Commands enqueued, but no immediate output.";
+  }
+  
+  server.send(200, "text/plain", responseBuffer);
 }
 
 void setMotorSpeed(int speedPercentage) {

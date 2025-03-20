@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../tools/AuthProvider.jsx';
 import { signIn, signInWithGoogle } from '../tools/auth';
+import { auth } from "../tools/firebase";
 import Button from '../components/Button.jsx';
 import googleIcon from '../assets/google-3.png';
 
@@ -38,7 +39,18 @@ const Login = () => {
     }
   };
 
+  const logToken = async () => {
+    const user = auth.currentUser;
+    if (user) {
+      const token = await user.getIdToken();
+      console.log("Firebase ID Token:", token);
+    } else {
+      console.log("No user is signed in.");
+    }
+  };
+
   if (userLoggedIn) {
+    logToken();
     return <Navigate to="/home" replace />;
   }
 

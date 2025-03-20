@@ -25,3 +25,6 @@ dist-ssr
 
 # python cache
 __pycache__
+
+# Firebase
+firebase-admin-key.json

@@ -1,0 +1,36 @@
+{
+    "feature_cols": [
+        "extraction_pressure",
+        "temperature",
+        "ground_size",
+        "extraction_time",
+        "dose_size",
+        "bean_type"
+    ],
+    "target_cols": [
+        "acidity",
+        "strength",
+        "sweetness",
+        "fruitiness",
+        "maltiness"
+    ],
+    "models": {
+        "acidity": "<class 'sklearn.linear_model._base.LinearRegression'>",
+        "strength": "<class 'sklearn.linear_model._base.LinearRegression'>",
+        "sweetness": "<class 'sklearn.linear_model._base.LinearRegression'>",
+        "fruitiness": "<class 'sklearn.linear_model._base.LinearRegression'>",
+        "maltiness": "<class 'sklearn.linear_model._base.LinearRegression'>"
+    },
+    "data_path": "data/",
+    "model_path": "models/",
+    "numeric_cols": [
+        "extraction_pressure",
+        "temperature",
+        "ground_size",
+        "extraction_time",
+        "dose_size"
+    ],
+    "categorical_cols": [
+        "bean_type"
+    ]
+}

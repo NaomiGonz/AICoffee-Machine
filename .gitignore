@@ -50,3 +50,6 @@ node_modules/
 .idea/
 
 .env
+
+# Firebase
+firebase-admin-key.json

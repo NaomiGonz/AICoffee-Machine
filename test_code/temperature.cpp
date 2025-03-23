@@ -2,18 +2,11 @@
 #include <HTTPClient.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include "secrets.h" 
 
 #define ONE_WIRE_BUS 21
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
-
-// WiFi Credentials
-const char* ssid = "Sebastian_Izzy";
-const char* password = "99999999";
-
-// Firebase Settings
-const char* firebaseHost = "ai-coffee-20cd0-default-rtdb.firebaseio.com";
-const char* firebaseAuth = "lSSR4Y6L7lETzNMSiLV6upAPnVu9CeLwS0oPAqJ3";
 
 float temperatureC[10];
 float temperatureF[10];
@@ -27,14 +20,14 @@ void setup() {
 
   // Connect to Wi-Fi
   Serial.println("Connecting to Wi-Fi...");
-  WiFi.begin(ssid, password);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
   Serial.println("\nConnected!");
 
-  // Get user-defined value
+  // Get user-defined doc suffix
   String userInput = "";
   Serial.println("Enter a name to store your Firebase document as test_<your_value>: ");
   while (userInput == "") {
@@ -66,7 +59,7 @@ void setup() {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
 
-    String url = String("https://") + firebaseHost + "/brewLogs/" + docName + ".json?auth=" + firebaseAuth;
+    String url = String("https://") + FIREBASE_HOST + "/brewLogs/" + docName + ".json?auth=" + FIREBASE_AUTH;
 
     String jsonData = "{";
     for (int i = 0; i < 10; i++) {
@@ -92,5 +85,5 @@ void setup() {
 }
 
 void loop() {
-  // No repeated tasks
+  // Nothing here
 }

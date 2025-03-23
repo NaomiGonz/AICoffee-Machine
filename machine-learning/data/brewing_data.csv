@@ -1,3 +1,2 @@
-extraction_pressure,temperature,ground_size,extraction_time,dose_size,bean_type,acidity,strength,sweetness,fruitiness,maltiness,timestamp
-7.5,93.0,450,28,18,arabica,6.8,7.2,5.9,6.5,4.8,2025-03-20 12:28:16.890982
-7.5,93.0,450,28,18,arabica,6.8,7.2,5.9,6.5,4.8,2025-03-20 12:33:12.773612
+extraction_pressure,temperature,ground_size,extraction_time,dose_size,bean_type,processing_method,acidity,strength,sweetness,fruitiness,maltiness,timestamp
+6.5,91.2,350.0,28.5,19.0,arabica,washed,6.8,7.2,5.9,6.5,4.8,2025-03-23 12:14:22.915106

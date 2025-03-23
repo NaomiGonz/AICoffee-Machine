@@ -57,29 +57,34 @@ const Home = () => {
 
   const handleBrew = async () => {
     try {
-      const response = await fetch('http://localhost:8000/brew', {
+      const response = await fetch('http://localhost:8000/open/brew', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          bitterness,
-          acidity,
-          sweetness,
-          strength,
-          fruitiness
+          desired_flavor: {
+            acidity: Number(acidity),
+            strength: Number(strength),
+            sweetness: Number(sweetness),
+            fruitiness: Number(fruitiness),
+            maltiness: Number(bitterness)  // Using bitterness for maltiness
+          }
         })
       });
       
       const data = await response.json();
+      
+      // Update to match the actual response structure
       alert(`Brew Settings:
-        Temperature: ${data.temperature}°C
-        Water: ${data.water_ml}ml
-        Pressure: ${data.pressure_bars} bars
-        Beans: ${JSON.stringify(data.beans)}`);
+        Temperature: ${data.parameters.temperature}°C
+        Water: ${data.parameters.dose_size * 2.5}ml
+        Pressure: ${data.parameters.extraction_pressure} bars
+        Beans: ${data.parameters.bean_type}`);
     } catch (error) {
+      console.error('Error:', error);
       alert('Error calculating brew settings');
     }
   };
-
+  
   return (
     <div 
       className="min-h-screen w-full"

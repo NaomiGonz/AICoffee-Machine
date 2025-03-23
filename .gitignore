@@ -45,6 +45,9 @@ yarn-error.log*
 # Node modules
 node_modules/
 
+# Python
+__pycache__/
+
 # IDE / Text editor settings
 .vscode/
 .idea/

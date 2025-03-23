@@ -14,15 +14,6 @@
         "fruitiness",
         "maltiness"
     ],
-    "models": {
-        "acidity": "<class 'sklearn.linear_model._base.LinearRegression'>",
-        "strength": "<class 'sklearn.linear_model._base.LinearRegression'>",
-        "sweetness": "<class 'sklearn.linear_model._base.LinearRegression'>",
-        "fruitiness": "<class 'sklearn.linear_model._base.LinearRegression'>",
-        "maltiness": "<class 'sklearn.linear_model._base.LinearRegression'>"
-    },
-    "data_path": "data/",
-    "model_path": "models/",
     "numeric_cols": [
         "extraction_pressure",
         "temperature",
@@ -32,5 +23,8 @@
     ],
     "categorical_cols": [
         "bean_type"
-    ]
+    ],
+    "data_path": "data/",
+    "model_path": "models/",
+    "has_quality_db": true
 }

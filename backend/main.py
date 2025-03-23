@@ -16,15 +16,19 @@ from coffee_ml import CoffeeMachineLearning
 
 import firebase_admin
 from firebase_admin import credentials, firestore
-from fastapi import Depends, HTTPException, FastAPI, Query
+from fastapi import Depends, HTTPException, FastAPI, Query, Header, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
-from httpx import BasicAuth 
+from httpx import BasicAuth
+
+# Set environment
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+DEBUG_MODE = os.getenv("DEBUG_MODE", "true").lower() == "true"
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG if DEBUG_MODE else logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler("app.log"),
@@ -48,7 +52,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)  # Make it optional
 
 # Initialize Firebase Admin if credentials file exists
 firebase_enabled = False
@@ -143,17 +147,36 @@ class TrainingStatus(BaseModel):
     metrics: Optional[Dict] = None
 
 # Helper Functions 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def get_current_user(request: Request, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
     """
-    Get the current UID from the Firebase token
+    Get the current UID from the Firebase token or return a development user
     """
-    if not firebase_enabled:
-        # Return a default user ID for development if Firebase is not enabled
+    # Always allow requests in development mode
+    if ENVIRONMENT == "development" or DEBUG_MODE:
+        logger.debug("Development mode: using development_user")
         return "development_user"
         
+    # Skip Firebase auth if not enabled
+    if not firebase_enabled:
+        logger.debug("Firebase disabled: using development_user")
+        return "development_user"
+    
+    # If this is a localhost or internal request, allow it
+    client_host = request.client.host
+    if client_host in ['127.0.0.1', 'localhost', '::1']:
+        logger.debug(f"Local request from {client_host}: using development_user")
+        return "development_user"
+    
+    # No credentials provided
+    if not credentials:
+        logger.warning("No authentication credentials provided")
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
     try:
         decoded_token = firebase_admin.auth.verify_id_token(credentials.credentials)
-        return decoded_token['uid']
+        uid = decoded_token['uid']
+        logger.debug(f"Authenticated user: {uid}")
+        return uid
     except Exception as e:
         logger.error(f"Authentication error: {e}")
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
@@ -202,11 +225,59 @@ def ml_output_to_command(brew_result: Dict) -> str:
 
 def check_models_loaded():
     """Check if models are loaded and raise exception if not"""
+    global models_loaded  # Move this to the beginning of the function
+    
     if not models_loaded:
+        if ENVIRONMENT == "development" or DEBUG_MODE:
+            # Try to generate synthetic data and train models
+            try:
+                synthetic_data_path = os.path.join(ml_data_dir, 'synthetic_brewing_data.csv')
+                
+                # Check if synthetic data exists, if not generate it
+                if not os.path.exists(synthetic_data_path):
+                    from test_coffee_ml import generate_synthetic_data
+                    data = generate_synthetic_data(n_samples=100)
+                    data.to_csv(synthetic_data_path, index=False)
+                else:
+                    data = pd.read_csv(synthetic_data_path)
+                
+                # Train models
+                ml.train_models(data)
+                ml.save_config()
+                
+                models_loaded = True  # This is fine now because we declared global at the top
+                logger.info("Models trained with synthetic data for development")
+                return
+            except Exception as e:
+                logger.error(f"Error auto-training models: {e}")
+                
         raise HTTPException(
             status_code=503, 
             detail="ML models not yet trained. Please train models first using /train endpoint."
         )
+    
+def ensure_valid_parameters(parameters: Dict) -> Dict:
+    """Ensure all required parameters are present and valid"""
+    if parameters is None:
+        parameters = {}
+    
+    # Default values for parameters
+    defaults = {
+        'extraction_pressure': 9.0,
+        'temperature': 93.0,
+        'ground_size': 400.0,
+        'extraction_time': 30.0,
+        'dose_size': 18.0,
+        'bean_type': 'arabica',
+    }
+    
+    # Apply defaults for missing or None values
+    for key, default_value in defaults.items():
+        if key not in parameters or parameters[key] is None:
+            logger.warning(f"Parameter {key} missing or None, using default: {default_value}")
+            parameters[key] = default_value
+    
+    return parameters
 
 @app.get("/", tags=["Status"])
 async def root():
@@ -215,6 +286,8 @@ async def root():
         "status": "online",
         "models_loaded": models_loaded,
         "firebase_enabled": firebase_enabled,
+        "environment": ENVIRONMENT,
+        "debug_mode": DEBUG_MODE,
         "message": "AI Coffee Machine API is running"
     }
 
@@ -226,6 +299,7 @@ async def calculate_brew(
     """
     Get optimal brewing parameters for a desired flavor profile
     """
+    logger.info(f"Brew request received for user {uid}")
     check_models_loaded()
     
     try:
@@ -238,11 +312,19 @@ async def calculate_brew(
             'maltiness': request.desired_flavor.maltiness
         }
         
+        logger.debug(f"Desired flavor profile: {desired_flavor}")
+        
         # Get brewing parameters suggestion from ML model
         parameters = ml.suggest_brewing_parameters(desired_flavor)
+        logger.debug(f"Raw parameters from ML model: {parameters}")
+        
+        # Ensure all parameters are valid
+        parameters = ensure_valid_parameters(parameters)
+        logger.debug(f"Validated parameters: {parameters}")
         
         # Generate ESP32 command string
         command_str = ml_output_to_command(parameters)
+        logger.debug(f"Generated ESP32 command: {command_str}")
         
         # Store in Firebase if enabled
         if firebase_enabled and db:
@@ -524,6 +606,115 @@ async def get_brew_history(
         logger.error(f"Error retrieving brew history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# Open endpoints that don't require authentication
+@app.post("/open/brew", response_model=BrewResponse, tags=["Open Endpoints"])
+async def open_brew(request: BrewRequest):
+    """
+    Open endpoint for brew parameters (no authentication required)
+    """
+    global models_loaded
+    try:
+        # Extract desired flavor profile
+        desired_flavor = {
+            'acidity': request.desired_flavor.acidity,
+            'strength': request.desired_flavor.strength,
+            'sweetness': request.desired_flavor.sweetness,
+            'fruitiness': request.desired_flavor.fruitiness,
+            'maltiness': request.desired_flavor.maltiness
+        }
+        
+        # Check models
+        if not models_loaded:
+            try:
+                synthetic_data_path = os.path.join(ml_data_dir, 'synthetic_brewing_data.csv')
+                if os.path.exists(synthetic_data_path):
+                    data = pd.read_csv(synthetic_data_path)
+                    ml.train_models(data)
+                    ml.save_config()
+                    models_loaded = True
+                    logger.info("Models trained for open endpoint")
+                else:
+                    # Use fallback parameters
+                    return BrewResponse(
+                        parameters=BrewParameters(
+                            extraction_pressure=9.0,
+                            temperature=93.0,
+                            ground_size=400.0,
+                            extraction_time=30.0,
+                            dose_size=18.0,
+                            bean_type='arabica'
+                        ),
+                        esp_command="D-4 R-75 V-45 G-7 R-0"
+                    )
+            except Exception as e:
+                logger.error(f"Error training models for open endpoint: {e}")
+                # Use fallback parameters
+                return BrewResponse(
+                    parameters=BrewParameters(
+                        extraction_pressure=9.0,
+                        temperature=93.0,
+                        ground_size=400.0,
+                        extraction_time=30.0,
+                        dose_size=18.0,
+                        bean_type='arabica'
+                    ),
+                    esp_command="D-4 R-75 V-45 G-7 R-0"
+                )
+        
+        # Get brewing parameters suggestion from ML model
+        parameters = ml.suggest_brewing_parameters(desired_flavor)
+        parameters = ensure_valid_parameters(parameters)
+        
+        # Generate ESP32 command string
+        command_str = ml_output_to_command(parameters)
+        
+        # Create response object
+        brew_params = BrewParameters(
+            extraction_pressure=parameters['extraction_pressure'],
+            temperature=parameters['temperature'],
+            ground_size=parameters['ground_size'],
+            extraction_time=parameters['extraction_time'],
+            dose_size=parameters['dose_size'],
+            bean_type=parameters['bean_type'],
+            processing_method=parameters.get('processing_method')
+        )
+        
+        return BrewResponse(
+            parameters=brew_params,
+            esp_command=command_str
+        )
+    
+    except Exception as e:
+        logger.error(f"Error in open brew endpoint: {e}")
+        # Return reasonable defaults
+        return BrewResponse(
+            parameters=BrewParameters(
+                extraction_pressure=9.0,
+                temperature=93.0,
+                ground_size=400.0,
+                extraction_time=30.0,
+                dose_size=18.0,
+                bean_type='arabica'
+            ),
+            esp_command="D-4 R-75 V-45 G-7 R-0"
+        )
+
+@app.post("/debug", tags=["Debugging"])
+async def debug_request(request: Request):
+    """Debug endpoint to check request body"""
+    body = await request.json()
+    return {
+        "received": body,
+        "required_structure": {
+            "desired_flavor": {
+                "acidity": "number between 0-10",
+                "strength": "number between 0-10",
+                "sweetness": "number between 0-10", 
+                "fruitiness": "number between 0-10",
+                "maltiness": "number between 0-10"
+            }
+        }
+    }
 # TODO: Implement additional endpoints for bean quality database integration
 
 if __name__ == "__main__":

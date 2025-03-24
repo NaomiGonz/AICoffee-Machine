@@ -57,7 +57,7 @@ const Home = () => {
 
   const handleBrew = async () => {
     try {
-      const response = await fetch('http://localhost:8000/open/brew', {
+      const response = await fetch('http://localhost:8000/brew', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

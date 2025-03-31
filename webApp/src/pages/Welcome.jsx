@@ -5,29 +5,25 @@ import Logo from '../assets/logo.svg';
 
 const Welcome = () => {
   return (
-    <div 
-      className="flex flex-col items-center justify-center h-screen w-screen" 
-    >
-      <img src={Logo} alt="AI Coffee Logo" className="w-40 h-40 mb-8" />
-      <h1 className="text-4xl font-bold mb-8" style={{ color: '#4A442D' }}>
+    <div className="flex flex-col items-center justify-center min-h-screen w-screen bg-[var(--color-mint)] px-6 text-center">
+      <img src={Logo} alt="AI Coffee Logo" className="w-32 h-32 mb-6" />
+      <h1 className="text-3xl sm:text-4xl font-extrabold mb-6 text-[var(--color-espresso)] tracking-tight">
         Welcome to AI Coffee
       </h1>
-      <Link to="/login">
+      <p className="text-[var(--color-espresso)] text-sm mb-8 max-w-md">
+        Your personalized brewing assistant — craft your perfect cup, learn your flavor profile, and enjoy coffee like never before.
+      </p>
+      <Link to="/login" className="w-full max-w-xs">
         <Button 
-          text="Login"
+          text="Get Started"
           onClick={() => {}}
-          color="#386150"
+          color="var(--color-hgreen)"
           transparent={false}
+          className="w-full"
         />
       </Link>
     </div>
   );
-
-  
 };
 
 export default Welcome;
-
-
-
-

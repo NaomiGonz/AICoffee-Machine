@@ -18,16 +18,21 @@ const CoffeeCard = ({ id, name, image, description }) => {
   return (
     <div
       onClick={handleClick}
-      // Fixed width on small screens, larger on md+, prevent shrink
-      className="w-48 md:w-56 flex-shrink-0 rounded-lg overflow-hidden shadow-lg opacity-90 cursor-pointer  bg-hgreen"
+      className="w-48 md:w-56 flex-shrink-0 rounded-2xl overflow-hidden bg-white shadow-md hover:shadow-lg transition duration-300 ease-in-out cursor-pointer border border-gray-100"
     >
       {/* Coffee Image */}
-      <img className="w-full h-auto rounded-t-lg" src={image} alt={name} />
+      <img
+        className="w-full h-36 object-cover object-center"
+        src={image}
+        alt={name}
+      />
 
       {/* Bottom Section */}
-      <div className="px-6 py-4 rounded-b-lg">
-        <div className="font-bold text-xl mb-2 text-white">{name}</div>
-        <p className="text-sm text-white">
+      <div className="px-4 py-3">
+        <div className="text-lg font-semibold text-[var(--color-roast)] mb-1 truncate">
+          {name}
+        </div>
+        <p className="text-sm text-gray-600 leading-snug">
           {description}
         </p>
       </div>
@@ -36,5 +41,3 @@ const CoffeeCard = ({ id, name, image, description }) => {
 };
 
 export default CoffeeCard;
-
-

@@ -43,7 +43,6 @@ const coffeeData = {
     fruitiness: 4,
     brewTime: "4 minutes",
   },
-  // ... add more coffee data
 };
 
 const CoffeeDetails = () => {
@@ -53,20 +52,16 @@ const CoffeeDetails = () => {
 
   if (!coffee) {
     return (
-      <div
-        className="min-h-screen"
-        style={{ backgroundColor: "var(--color-mint)" }}
-      >
+      <div className="min-h-screen bg-[var(--color-mint)]">
         <NavBar />
-        <div className="pt-20 flex flex-col items-center justify-center">
-          <h2 className="text-xl" style={{ color: "var(--color-espresso)" }}>
+        <div className="pt-24 flex flex-col items-center justify-center">
+          <h2 className="text-xl text-[var(--color-espresso)] mb-4">
             No coffee found with ID: {coffeeId}
           </h2>
           <Button
             text="Go Back"
             onClick={() => navigate(-1)}
             color="var(--color-hgreen)"
-            transparent={false}
           />
         </div>
       </div>
@@ -78,52 +73,47 @@ const CoffeeDetails = () => {
   };
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ backgroundColor: "var(--color-mint)" }}
-    >
+    <div className="min-h-screen bg-[var(--color-mint)]">
       <NavBar />
 
-      <div className="pt-20 flex flex-col items-center text-center px-4">
-        <h1
-          className="text-3xl font-bold mb-4"
-          style={{ color: "var(--color-espresso)" }}
-        >
+      <div className="pt-24 flex flex-col items-center text-center px-4">
+        <h1 className="text-3xl font-extrabold text-[var(--color-roast)] mb-4 tracking-tight">
           {coffee.name}
         </h1>
+
         <img
           src={coffee.image}
           alt={coffee.name}
-          className="w-48 h-auto mb-4"
+          className="w-48 h-auto rounded-xl shadow-md mb-6"
         />
 
-        <p className="mb-4 max-w-md">{coffee.description}</p>
+        <p className="mb-4 max-w-md text-gray-700 leading-relaxed">
+          {coffee.description}
+        </p>
 
-        <ul className="text-left mb-4 max-w-xs">
-          <li>Bitterness: {coffee.bitterness}/10</li>
-          <li>Acidity: {coffee.acidity}/10</li>
-          <li>Sweetness: {coffee.sweetness}/10</li>
-          <li>Strength: {coffee.strength}/10</li>
-          <li>Fruitiness: {coffee.fruitiness}/10</li>
+        <ul className="text-left mb-4 max-w-xs text-sm text-gray-700 space-y-1">
+          <li><strong>Bitterness:</strong> {coffee.bitterness}/10</li>
+          <li><strong>Acidity:</strong> {coffee.acidity}/10</li>
+          <li><strong>Sweetness:</strong> {coffee.sweetness}/10</li>
+          <li><strong>Strength:</strong> {coffee.strength}/10</li>
+          <li><strong>Fruitiness:</strong> {coffee.fruitiness}/10</li>
         </ul>
-        <p className="mb-4">Expected brew time: {coffee.brewTime}</p>
 
-        <div className="flex flex-row gap-6">
-        {/* Brew Button */}
-        <Button
-          text="Brew"
-          onClick={handleBrew}
-          color="var(--color-hgreen)"
-          transparent={false}
-        />
+        <p className="mb-6 text-gray-600 text-sm">Expected brew time: {coffee.brewTime}</p>
 
-        {/* Back Button */}
-        <Button
-          text="Back"
-          onClick={() => navigate(-1)}
-          color="var(--color-hgreen)"
-          transparent={false}
-        />
+        <div className="flex flex-col sm:flex-row gap-4">
+          <Button
+            text="Brew"
+            onClick={handleBrew}
+            color="var(--color-hgreen)"
+          />
+
+          <Button
+            text="Back"
+            onClick={() => navigate(-1)}
+            color="var(--color-hgreen)"
+            transparent={true}
+          />
         </div>
       </div>
     </div>

@@ -25,7 +25,6 @@ const Register = () => {
         setErrorMessage('Registration failed');
         setIsRegistering(false);
       }
-      // On success, the AuthProvider updates currentUser and redirection occurs.
     }
   };
 
@@ -34,32 +33,27 @@ const Register = () => {
   }
 
   return (
-    <main 
-      className="flex items-center justify-center" 
-      style={{ backgroundColor: '#CAF7E2' }}
-    >
-      <div 
-        className="w-96 space-y-5 p-6 shadow-xl border rounded-xl mt-30" 
-        style={{ borderColor: '#3D3522', backgroundColor: '#FFF', color: '#4A442D' }}
-      >
-        <div className="text-center mb-6">
-          <h3 className="text-xl font-semibold">Create a New Account</h3>
+    <main className="flex items-center justify-center min-h-screen bg-[var(--color-mint)]">
+      <div className="w-full max-w-md px-6 py-8 bg-white border border-[var(--color-roast)] shadow-lg rounded-xl space-y-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-extrabold text-[var(--color-espresso)] tracking-tight">Create a New Account</h1>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
+
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="text-sm font-bold">Email</label>
+            <label className="text-sm font-semibold text-[var(--color-espresso)]">Email</label>
             <input
               type="email"
               autoComplete="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full mt-2 px-3 py-2 bg-transparent outline-none border focus:border-[#58B09C] shadow-sm rounded-lg transition duration-300"
-              style={{ borderColor: '#3D3522' }}
+              className="w-full mt-1 px-3 py-2 border rounded-md outline-none focus:border-[var(--color-teal)] transition"
             />
           </div>
+
           <div>
-            <label className="text-sm font-bold">Password</label>
+            <label className="text-sm font-semibold text-[var(--color-espresso)]">Password</label>
             <input
               type="password"
               autoComplete="new-password"
@@ -67,12 +61,12 @@ const Register = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={isRegistering}
-              className="w-full mt-2 px-3 py-2 bg-transparent outline-none border focus:border-[#58B09C] shadow-sm rounded-lg transition duration-300"
-              style={{ borderColor: '#3D3522' }}
+              className="w-full mt-1 px-3 py-2 border rounded-md outline-none focus:border-[var(--color-teal)] transition"
             />
           </div>
+
           <div>
-            <label className="text-sm font-bold">Confirm Password</label>
+            <label className="text-sm font-semibold text-[var(--color-espresso)]">Confirm Password</label>
             <input
               type="password"
               autoComplete="off"
@@ -80,28 +74,29 @@ const Register = () => {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               disabled={isRegistering}
-              className="w-full mt-2 px-3 py-2 bg-transparent outline-none border focus:border-[#58B09C] shadow-sm rounded-lg transition duration-300"
-              style={{ borderColor: '#3D3522' }}
+              className="w-full mt-1 px-3 py-2 border rounded-md outline-none focus:border-[var(--color-teal)] transition"
             />
           </div>
+
           {errorMessage && (
-            <span className="text-red-600 font-bold">{errorMessage}</span>
+            <div className="text-red-600 text-sm font-semibold">{errorMessage}</div>
           )}
+
           <Button 
             type="submit"
             text={isRegistering ? 'Signing Up...' : 'Sign Up'}
             onClick={handleSubmit}
             disabled={isRegistering}
-            color="#386150"
-            transparent={false}
+            color="var(--color-hgreen)"
             className="w-full"
           />
-          <div className="text-center text-sm" style={{ color: '#4A442D' }}>
+
+          <p className="text-center text-sm text-[var(--color-espresso)]">
             Already have an account?{' '}
-            <Link to="/login" className="hover:underline font-bold" style={{ color: '#386150' }}>
+            <Link to="/login" className="font-semibold hover:underline text-[var(--color-hgreen)]">
               Continue
             </Link>
-          </div>
+          </p>
         </form>
       </div>
     </main>

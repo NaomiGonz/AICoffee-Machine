@@ -3,14 +3,26 @@ import NavBar from "../components/NavBar.jsx";
 
 const Machine = () => {
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "var(--color-mint)" }}>
+    <div className="min-h-screen bg-[var(--color-mint)]">
       <NavBar />
-      <div className="p-4 pt-20">
-        <h1 className="text-3xl font-bold mb-4" style={{ color: "var(--color-espresso)" }}>
-          Machine Page
+      <div className="max-w-4xl mx-auto px-6 pt-28 pb-16">
+        <h1 className="text-3xl font-extrabold text-[var(--color-espresso)] mb-4">
+          Machine Interface (Coming Soon)
         </h1>
-        <p>This is a placeholder for the machine control interface.</p>
-        {/* Later, we’ll add content for controlling the coffee machine */}
+        <p className="text-gray-700 max-w-lg">
+          This page will allow you to directly control your AI Coffee Machine — from starting brews to adjusting grind size, temperature, and pressure in real time. Stay tuned for a beautifully interactive experience.
+        </p>
+
+        <div className="mt-8 text-sm text-gray-500">
+          Planned features:
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li>Live brewing stats and logs</li>
+            <li>Manual override of brew settings</li>
+            <li>Hardware status indicators</li>
+            <li>Connected device management</li>
+            <li>Remote brew start</li>
+          </ul>
+        </div>
       </div>
     </div>
   );

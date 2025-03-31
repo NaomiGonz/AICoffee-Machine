@@ -60,7 +60,7 @@ const Home = () => {
       });
 
       const data = await response.json();
-      alert(`☕ Brew Settings:\nTemperature: ${data.parameters.temperature}°C\nWater: ${data.parameters.dose_size * 2.5}ml\nPressure: ${data.parameters.extraction_pressure} bars\nBeans: ${data.parameters.bean_type}`);
+      alert(`Brew Settings:\nTemperature: ${data.parameters.temperature}°C\nWater: ${data.parameters.dose_size * 2.5}ml\nPressure: ${data.parameters.extraction_pressure} bars\nBeans: ${data.parameters.bean_type}`);
 
       fetchBrews();
     } catch (error) {
@@ -79,7 +79,14 @@ const Home = () => {
       const userDocRef = doc(db, "users", uid);
       const brewsRef = collection(userDocRef, "brews");
 
+      console.log("[Firestore] Fetching from: users/", uid, "/brews");
+
       const snapshot = await getDocs(brewsRef);
+      console.log("[Firestore] Documents fetched:", snapshot.docs.length);
+
+      if (snapshot.empty) {
+        console.warn("[Firestore] No brew documents found.");
+      }
 
       const brews = snapshot.docs.map((doc) => {
         const data = doc.data();
@@ -92,9 +99,8 @@ const Home = () => {
         };
       });
 
-      setBrewHistory(
-        brews.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      );
+      const sortedBrews = brews.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      setBrewHistory(sortedBrews.slice(0, 10));
     } catch (error) {
       console.error("[Firestore] Error fetching brews:", error);
     }
@@ -115,14 +121,22 @@ const Home = () => {
   return (
     <div className="min-h-screen w-full bg-[var(--color-mint)]">
       <NavBar />
-      <main className="pt-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-        {/* Craft Section */}
-        <section>
-          <h2 className="text-3xl font-extrabold text-[var(--color-roast)] mb-6 tracking-tight">Craft Your Perfect Cup</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6">
+      <div className="pt-20">
+        <section className="px-6 md:px-12 py-6">
+          <h2 className="text-2xl font-bold mb-4 text-[var(--color-roast)]">Featured Coffees</h2>
+          <div className="overflow-x-auto flex flex-nowrap gap-4 pb-2">
+            {featuredCoffees.map((coffee) => (
+              <CoffeeCard key={coffee.id} {...coffee} />
+            ))}
+          </div>
+        </section>
+
+        <section className="px-6 md:px-12 py-6">
+          <h2 className="text-2xl font-bold mb-4 text-[var(--color-roast)]">Craft Your Perfect Cup</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
             {sliders.map(({ label, value, setter }, idx) => (
-              <div key={idx} className="flex flex-col gap-1">
-                <label className="text-[var(--color-roast)] text-sm font-medium">{label}: {value}</label>
+              <div key={idx} className="flex flex-col">
+                <label className="font-semibold text-[var(--color-roast)]">{label}: {value}</label>
                 <input
                   type="range"
                   min="1"
@@ -136,36 +150,25 @@ const Home = () => {
           </div>
           <button
             onClick={() => handleBrew()}
-            className="mt-6 px-6 py-2 bg-[var(--color-hgreen)] text-white rounded-md shadow-sm hover:shadow-lg transition"
+            className="mt-6 px-6 py-2 bg-[var(--color-hgreen)] text-white rounded hover:shadow-md"
           >
             Brew
           </button>
         </section>
 
-        {/* Featured Coffees */}
-        <section>
-          <h2 className="text-3xl font-extrabold text-[var(--color-roast)] mb-6 tracking-tight">Featured Coffees</h2>
-          <div className="overflow-x-auto flex flex-nowrap gap-4 pb-2">
-            {featuredCoffees.map((coffee) => (
-              <CoffeeCard key={coffee.id} {...coffee} />
-            ))}
-          </div>
-        </section>
-
-        {/* Brew History */}
-        <section>
-          <h2 className="text-3xl font-extrabold text-[var(--color-roast)] mb-6 tracking-tight">Brew History</h2>
+        <section className="px-6 md:px-12 py-6">
+          <h2 className="text-2xl font-bold mb-4 text-[var(--color-roast)]">Brew History</h2>
           {brewHistory.length === 0 ? (
             <p className="text-gray-600">No brews found.</p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
               {brewHistory.map((brew) => (
                 <BrewHistoryCard key={brew.id} brew={brew} onBrewAgain={() => handleBrew(brew.desired_flavor)} />
               ))}
             </div>
           )}
         </section>
-      </main>
+      </div>
     </div>
   );
 };

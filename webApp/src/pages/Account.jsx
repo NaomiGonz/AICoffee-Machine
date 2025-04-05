@@ -79,7 +79,6 @@ const Account = () => {
             <div className="bg-white shadow-md rounded p-6 space-y-2 text-[var(--color-espresso)]">
               <p><strong>Name:</strong> {userInfo.name}</p>
               <p><strong>Email:</strong> {userInfo.email}</p>
-              <p><strong>User ID:</strong> {userInfo.uid}</p>
               <p><strong>Created On:</strong> {userInfo.created}</p>
               <p><strong>Last Login:</strong> {userInfo.lastLogin}</p>
             </div>

@@ -26,5 +26,5 @@
     ],
     "data_path": "data/",
     "model_path": "models/",
-    "has_quality_db": true
+    "has_quality_db": false
 }

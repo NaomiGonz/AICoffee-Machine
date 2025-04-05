@@ -10,6 +10,12 @@ const Machine = () => {
     pressure: 9,
     grindSize: 5,
   });
+  const [beanSlots, setBeanSlots] = useState([
+    { name: "", type: "arabica", roast: "medium", notes: "" },
+    { name: "", type: "arabica", roast: "medium", notes: "" },
+    { name: "", type: "arabica", roast: "medium", notes: "" },
+    { name: "", type: "arabica", roast: "medium", notes: "" },
+  ]);
   const [log, setLog] = useState([]);
   const socketRef = useRef(null);
 
@@ -47,6 +53,12 @@ const Machine = () => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
+  const updateBeanSlot = (index, field, value) => {
+    const updated = [...beanSlots];
+    updated[index][field] = value;
+    setBeanSlots(updated);
+  };
+
   const handleManualBrew = () => {
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
       alert("Please connect to the machine first.");
@@ -58,6 +70,7 @@ const Machine = () => {
       temperature: settings.temperature,
       pressure: settings.pressure,
       grindSize: settings.grindSize,
+      beanSlots,
     };
 
     socketRef.current.send(JSON.stringify(payload));
@@ -149,6 +162,55 @@ const Machine = () => {
               onClick={handleManualBrew}
               color="#386150"
             />
+          </div>
+        </section>
+
+        <section className="mb-12">
+          <h2 className="text-xl font-semibold text-[var(--color-roast)] mb-4">
+            Bean Slots Configuration
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {beanSlots.map((slot, idx) => (
+              <div
+                key={idx}
+                className="border border-[var(--color-espresso)] rounded p-4 bg-white shadow-sm"
+              >
+                <h3 className="font-semibold text-[var(--color-roast)] mb-2">
+                  Slot {idx + 1}
+                </h3>
+                <input
+                  className="w-full mb-2 p-2 border rounded"
+                  placeholder="Bean Name (optional)"
+                  value={slot.name}
+                  onChange={(e) => updateBeanSlot(idx, "name", e.target.value)}
+                />
+                <select
+                  className="w-full mb-2 p-2 border rounded"
+                  value={slot.type}
+                  onChange={(e) => updateBeanSlot(idx, "type", e.target.value)}
+                >
+                  <option value="arabica">Arabica</option>
+                  <option value="robusta">Robusta</option>
+                  <option value="blend">Blend</option>
+                </select>
+                <select
+                  className="w-full mb-2 p-2 border rounded"
+                  value={slot.roast}
+                  onChange={(e) => updateBeanSlot(idx, "roast", e.target.value)}
+                >
+                  <option value="light">Light Roast</option>
+                  <option value="medium">Medium Roast</option>
+                  <option value="dark">Dark Roast</option>
+                </select>
+                <textarea
+                  className="w-full p-2 border rounded"
+                  rows="2"
+                  placeholder="Flavor notes (optional)"
+                  value={slot.notes}
+                  onChange={(e) => updateBeanSlot(idx, "notes", e.target.value)}
+                />
+              </div>
+            ))}
           </div>
         </section>
 

@@ -2,10 +2,9 @@
 #include <math.h>       // For pow() in pump control
 #include <ESP32Servo.h> // For servos
 #include "VescUart.h"   // For VESC control
+#include "driver/ledc.h"
 
-// --- Operation Mode ---
-// #define WEB_MODE      // Uncomment for Web Server control
-#define SERIAL_MODE // Uncomment for Serial Monitor control
+#define WEB_MODE
 
 #ifdef WEB_MODE
 #include <WiFi.h>
@@ -14,26 +13,29 @@
 #endif
 
 // ==========================================================
-// --- Pin Definitions  ---
+// --- WiFi Credentials ---
+// ==========================================================
+#ifdef WEB_MODE
+const char* ssid = "Sebastian_Izzy";
+const char* password = "99999999";
+WebServer server(80);
+#endif
+
+// ==========================================================
+// --- Pin Definitions ---
 // ==========================================================
 
-// VESC Control (Barrel = VESC1/RPM, Grinder = VESC2/Duty)
-const int VESC1_RX_PIN = 16; // Serial1 RX for Barrel Motor VESC
-const int VESC1_TX_PIN = 17; // Serial1 TX for Barrel Motor VESC
-const int VESC2_RX_PIN = 12; // Serial2 RX for Grinder Motor VESC
-const int VESC2_TX_PIN = 13; // Serial2 TX for Grinder Motor VESC
+const int VESC1_RX_PIN = 16;
+const int VESC1_TX_PIN = 17;
+const int VESC2_RX_PIN = 12;
+const int VESC2_TX_PIN = 13;
 
-// Heater Control
-const int HEATER_PIN = 23; // Heater PWM pin
+const int HEATER_PIN = 23;
+const int OE_PIN = 8;
 
-// Logic Level Shifter Enable Pin (Active HIGH)
-const int OE_PIN = 8; // Used for Flow Sensor, and Servos 
+const int PUMP_PWM_PIN = 18;
+const int FLOW_SENSOR_PIN = 10;
 
-// Water Pump Control (L298N) 
-const int PUMP_PWM_PIN    = 18; // L298N IN1 (or equivalent PWM input)
-const int FLOW_SENSOR_PIN = 10; // Flow sensor interrupt pin 
-
-// Servo Control 
 const int SERVO_PIN_A = 4;
 const int SERVO_PIN_B = 5;
 const int SERVO_PIN_C = 6;
@@ -43,71 +45,48 @@ const int SERVO_PIN_D = 7;
 // --- Configuration & Calibration ---
 // ==========================================================
 
-// Serial Baud Rate
 #define SERIAL_BAUD 115200
+#define PWM_FREQ 5000
+#define PWM_RES 8
 
-// PWM Configuration
-#define PWM_FREQ 5000 // PWM Frequency for Heater/Pump
-#define PWM_RES 8     // PWM Resolution (0-255)
 enum PWMLedcChannels {
-  PUMP_LEDC_CHANNEL   = 0, // LEDC Channel for Pump
-  HEATER_LEDC_CHANNEL = 1  // LEDC Channel for Heater
+  PUMP_LEDC_CHANNEL = 0,
+  HEATER_LEDC_CHANNEL = 1
 };
 
-// VESC Ramping Configuration
-#define RPM_STEP_SIZE          7.0f   // Barrel motor RPM step
-#define RPM_STEP_INTERVAL_US   100UL  // Barrel motor step interval (micros)
-#define DUTY_STEP_SIZE         0.001f // Grinder motor Duty step
-#define DUTY_STEP_INTERVAL_US  500UL  // Grinder motor step interval (micros)
+#define RPM_STEP_SIZE 7.0f
+#define RPM_STEP_INTERVAL_US 100UL
+#define DUTY_STEP_SIZE 0.001f
+#define DUTY_STEP_INTERVAL_US 500UL
 
-// Water Pump Flow Sensor Calibration (Copied from pump code)
-// Ticks/mL = -0.0792 * (FlowRate)^2 + 1.0238 * (FlowRate) + 1.2755
-// FlowRate (mL/s) = 0.0343 * Duty - 1.0155  => Duty = (FlowRate + 1.0155) / 0.0343
-
-// Water Pump PID Controller Gains
 float kp = 15.0;
 float ki = 30.0;
 float kd = 0.5;
-float maxIntegral = 100.0; // Anti-windup limit
+float maxIntegral = 100.0;
 
-// Water Pump Control Intervals
-const unsigned long flowCalcInterval = 100; // ms
-const unsigned long controlInterval = 50;   // ms
+const unsigned long flowCalcInterval = 100;
+const unsigned long controlInterval = 50;
 
-// Servo Target Angles (Used when S command is received) & Off Angle
 const int SERVO_A_TARGET_ANGLE = 45;
 const int SERVO_B_TARGET_ANGLE = 45;
 const int SERVO_C_TARGET_ANGLE = 45;
 const int SERVO_D_TARGET_ANGLE = 45;
-const int SERVO_OFF_ANGLE = 90; // Angle to set when timed operation ends
+const int SERVO_OFF_ANGLE = 90;
 
-// Coffee Machine Safety Parameters
-#define HEATER_TIMEOUT 5000     // Heater auto-off if pump not used (ms)
-#define POST_PUMP_COOLDOWN 1000 // Heater off delay after pump stops (ms)
-#define QUEUE_SIZE 20           // Command queue capacity
-
-#ifdef WEB_MODE
-// WiFi Configuration 
-const char* ssid = "WIFI_NAME";
-const char* password = "WIFI_PASSWORD";
-WebServer server(80);
-#endif
+#define HEATER_TIMEOUT 5000
+#define POST_PUMP_COOLDOWN 1000
+#define QUEUE_SIZE 20
 
 // ==========================================================
 // --- Global Variables & Objects ---
 // ==========================================================
 
-// VESC Objects and State
-VescUart vesc1; // Barrel Motor (RPM Control)
-VescUart vesc2; // Grinder Motor (Duty Control)
-float currentRpm1 = 0.0f;
-float targetRpm1  = 0.0f;
-float currentDuty2 = 0.0f;
-float targetDuty2  = 0.0f;
-uint32_t lastRpmStepTime  = 0;
-uint32_t lastDutyStepTime = 0;
+VescUart vesc1;
+VescUart vesc2;
+float currentRpm1 = 0.0f, targetRpm1 = 0.0f;
+float currentDuty2 = 0.0f, targetDuty2 = 0.0f;
+uint32_t lastRpmStepTime = 0, lastDutyStepTime = 0;
 
-// Water Pump State & Control Variables
 volatile unsigned long pulseCount = 0;
 unsigned long lastPulseCount = 0;
 float dispensedVolumeML = 0.0;
@@ -117,45 +96,34 @@ float targetFlowRateMLPS = 0.0;
 bool dispensingActive = false;
 unsigned long lastFlowCalcTime = 0;
 unsigned long lastControlTime = 0;
-float pidError = 0.0;
-float lastError = 0.0;
-float integralError = 0.0;
-float derivativeError = 0.0;
-float pidOutput = 0.0;
+float pidError = 0.0, lastError = 0.0, integralError = 0.0, derivativeError = 0.0, pidOutput = 0.0;
 int feedforwardDuty = 0;
 unsigned long dispenseStartTime = 0;
 
-// Servo Objects and State
-Servo servoA;
-Servo servoB;
-Servo servoC;
-Servo servoD;
-unsigned long servoEndTimes[4] = {0, 0, 0, 0}; // 0:A, 1:B, 2:C, 3:D. Stores millis() when servo should turn off.
+Servo servoA, servoB, servoC, servoD;
+unsigned long servoEndTimes[4] = {0, 0, 0, 0};
 
-// Coffee Machine State & Command Queue
 bool heaterActive = false;
-bool pumpUsedSinceHeaterOn = false; // For heater safety timeout
-unsigned long heaterStartTime = 0;   // For heater safety timeout
-unsigned long generalDelayEndTime = 0; // For 'D' command
+bool pumpUsedSinceHeaterOn = false;
+unsigned long heaterStartTime = 0;
+unsigned long generalDelayEndTime = 0;
 
 enum CommandType { CMD_R, CMD_G, CMD_P, CMD_H, CMD_S, CMD_D, CMD_INVALID };
 struct Command {
   CommandType type;
-  float value1 = 0; // RPM, Duty, Volume, Power, Delay(ms) 
-  float value2 = 0; // Flow Rate, Servo Duration(ms)
-  char id = ' ';    // Servo ID (A, B, C, D)
+  float value1 = 0;
+  float value2 = 0;
+  char id = ' ';
 };
 Command cmdQueue[QUEUE_SIZE];
 int queueFront = 0, queueRear = 0, queueCount = 0;
 
-// For Serial Input Buffering
 String serialInputBuffer = "";
 
 // ==========================================================
-// --- Interrupt Service Routines (For Flow Rate) ---
+// --- Flow Sensor ISR ---
 // ==========================================================
 void IRAM_ATTR flowISR() {
-  // DO NOT ADD ANYTHING ELSE HERE
   pulseCount++;
 }
 
@@ -530,19 +498,20 @@ void executeCommandFromQueue() {
         }
         break;
 
-      case CMD_H: // Set Heater Power
+      case CMD_H: {
         Serial.println(" H-" + String(cmd.value1));
         int heaterDuty = map(constrain((int)cmd.value1, 0, 100), 0, 100, 0, 255);
         ledcWrite(HEATER_LEDC_CHANNEL, heaterDuty);
         heaterActive = (heaterDuty > 0);
         if (heaterActive) {
           heaterStartTime = millis();
-          pumpUsedSinceHeaterOn = false; // Reset pump usage flag when heater turns on/changes
+          pumpUsedSinceHeaterOn = false;
           Serial.println("  Heater ON");
         } else {
-           Serial.println("  Heater OFF");
+          Serial.println("  Heater OFF");
         }
         break;
+      }
 
       case CMD_S: // Set Servo Angle for a Duration (using TARGET angle)
         { 
@@ -857,7 +826,7 @@ void loop() {
 
 #ifdef WEB_MODE
   server.handleClient(); // Handle web requests
-   MDNS.update(); // Keep mDNS active
+  //MDNS.update(); // Keep mDNS active
 #endif // WEB_MODE
 
 #if defined(SERIAL_MODE) || !defined(WEB_MODE) // Allow Serial input if in SERIAL_MODE or if WEB_MODE is disabled

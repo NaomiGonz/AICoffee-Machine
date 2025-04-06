@@ -3,6 +3,9 @@
 #include <ESP32Servo.h> // For servos
 #include "VescUart.h"   // For VESC control
 
+
+// THIS CODE IS IN THE SERIAL MONITOR VERSION RN 
+
 // --- Operation Mode ---
 // #define WEB_MODE      // Uncomment for Web Server control
 #define SERIAL_MODE // Uncomment for Serial Monitor control
@@ -10,7 +13,16 @@
 #ifdef WEB_MODE
 #include <WiFi.h>
 #include <WebServer.h>
-#include <ESPmDNS.h>
+// #include <ESPmDNS.h>
+#endif
+
+// ==========================================================
+// --- WiFi Credentials ---
+// ==========================================================
+#ifdef WEB_MODE
+const char* ssid = "Sebastian_Izzy";
+const char* password = "99999999";
+WebServer server(80);
 #endif
 
 // ==========================================================
@@ -43,10 +55,10 @@ const int SERVO_PIN_D = 7;
 // --- Configuration & Calibration ---
 // ==========================================================
 
-// Serial Baud Rate
+// Serial Baud Rate (THIS IS UNIVERSIAL FOR EVERYTHING)
 #define SERIAL_BAUD 115200
 
-// PWM Configuration
+// PWM Configuration (THIS IS FOR EVERYTHING CONNECTED TO THE H-BRIDGE)
 #define PWM_FREQ 5000 // PWM Frequency for Heater/Pump
 #define PWM_RES 8     // PWM Resolution (0-255)
 enum PWMLedcChannels {
@@ -74,24 +86,17 @@ float maxIntegral = 100.0; // Anti-windup limit
 const unsigned long flowCalcInterval = 100; // ms
 const unsigned long controlInterval = 50;   // ms
 
-// Servo Target Angles (Used when S command is received) & Off Angle
+// Servo Target Angles (Used when Servo command is received) & Off Angle
 const int SERVO_A_TARGET_ANGLE = 45;
 const int SERVO_B_TARGET_ANGLE = 45;
 const int SERVO_C_TARGET_ANGLE = 45;
 const int SERVO_D_TARGET_ANGLE = 45;
-const int SERVO_OFF_ANGLE = 90; // Angle to set when timed operation ends
+const int SERVO_OFF_ANGLE = 90; // Angle to stop servo from spinninng
 
 // Coffee Machine Safety Parameters
 #define HEATER_TIMEOUT 5000     // Heater auto-off if pump not used (ms)
 #define POST_PUMP_COOLDOWN 1000 // Heater off delay after pump stops (ms)
 #define QUEUE_SIZE 20           // Command queue capacity
-
-#ifdef WEB_MODE
-// WiFi Configuration 
-const char* ssid = "WIFI_NAME";
-const char* password = "WIFI_PASSWORD";
-WebServer server(80);
-#endif
 
 // ==========================================================
 // --- Global Variables & Objects ---
@@ -134,15 +139,15 @@ unsigned long servoEndTimes[4] = {0, 0, 0, 0}; // 0:A, 1:B, 2:C, 3:D. Stores mil
 
 // Coffee Machine State & Command Queue
 bool heaterActive = false;
-bool pumpUsedSinceHeaterOn = false; // For heater safety timeout
-unsigned long heaterStartTime = 0;   // For heater safety timeout
-unsigned long generalDelayEndTime = 0; // For 'D' command
+bool pumpUsedSinceHeaterOn = false; // (flag) For heater safety timeout 
+unsigned long heaterStartTime = 0;   // (flag)  For heater safety timeout
+unsigned long generalDelayEndTime = 0; // (flag) For 'Delay' command
 
 enum CommandType { CMD_R, CMD_G, CMD_P, CMD_H, CMD_S, CMD_D, CMD_INVALID };
 struct Command {
   CommandType type;
-  float value1 = 0; // RPM, Duty, Volume, Power, Delay(ms) 
-  float value2 = 0; // Flow Rate, Servo Duration(ms)
+  float value1 = 0; // Possible values: RPM, Duty, Volume, Power, or Delay(ms) 
+  float value2 = 0; // Possible values: Flow Rate, or Servo Duration(ms)
   char id = ' ';    // Servo ID (A, B, C, D)
 };
 Command cmdQueue[QUEUE_SIZE];
@@ -156,6 +161,7 @@ String serialInputBuffer = "";
 // ==========================================================
 void IRAM_ATTR flowISR() {
   // DO NOT ADD ANYTHING ELSE HERE
+  // THIS FUNCITON COUNTS PULSES
   pulseCount++;
 }
 
@@ -187,6 +193,7 @@ int calculateFeedforwardDuty(float targetRate) {
 
 // --- VESC Ramping Helpers ---
 void stepRpm() {
+  // THIS FUNCTION IS SUPPOSED TO FIND RPM TO SLOWLY RAMP UP VESC
   float diff = targetRpm1 - currentRpm1;
   if (fabs(diff) <= RPM_STEP_SIZE) {
     currentRpm1 = targetRpm1;
@@ -196,13 +203,14 @@ void stepRpm() {
 }
 
 void stepDuty() {
+  // THIS FUNCTION IS SUPPOSED TO FIND DUTY TO SLOWLY RAMP UP VESC
   float diff = targetDuty2 - currentDuty2;
   if (fabs(diff) <= DUTY_STEP_SIZE) {
     currentDuty2 = targetDuty2;
   } else {
     currentDuty2 += (diff > 0 ? DUTY_STEP_SIZE : -DUTY_STEP_SIZE);
   }
-   currentDuty2 = constrain(currentDuty2, -1.0f, 1.0f); // Ensure duty stays within bounds
+   currentDuty2 = constrain(currentDuty2, -1.0f, 1.0f); 
 }
 
 // --- Command Processing Helpers ---
@@ -296,7 +304,7 @@ Command parseToken(const String& token) {
   return cmd;
 }
 
-
+// THIS IS FOR PARSING COMMANDS 
 // Counts the number of valid command tokens in a space-separated string
 int countValidCommandsInString(const String& input) {
     String currentToken;
@@ -544,7 +552,7 @@ void executeCommandFromQueue() {
         }
         break;
 
-      case CMD_S: // Set Servo Angle for a Duration (using TARGET angle)
+      case CMD_S: // Set Servo SPEED using (angle) for a Duration (using defined TARGET angle constants declared previously)
         { 
             unsigned long duration = (unsigned long)cmd.value2; // Duration is already in ms
             unsigned long endTime = millis() + duration;
@@ -599,6 +607,7 @@ void executeCommandFromQueue() {
   }
 }
 
+// FUNCTION THAT KEEPS TRACK OF WATER PUMP STATE
 void updateWaterPump() {
   if (!dispensingActive) return;
 
@@ -670,7 +679,7 @@ void updateWaterPump() {
       }
   }
 
-  // --- Check Stop Condition ---
+  // --- Check Stop Condition for water pump is met ---
   if (dispensedVolumeML >= targetVolumeML) {
     ledcWrite(PUMP_LEDC_CHANNEL, 0); // Stop pump PWM
     // NO PUMP_OE_PIN toggle needed here
@@ -696,7 +705,7 @@ void updateWaterPump() {
   }
 }
 
-
+// sets RPM or Duty for VESC1 and VESC2 
 void updateVescControl() {
   uint32_t now_us = micros();
 
@@ -715,6 +724,8 @@ void updateVescControl() {
   }
 }
 
+// --- Servo Control ---
+// This function checks if the servo should be turned off based on the end time
 void updateServos() {
   unsigned long currentTime = millis();
   Servo* servos[] = {&servoA, &servoB, &servoC, &servoD};
@@ -727,6 +738,10 @@ void updateServos() {
   }
 }
 
+// --- Safety Features ---
+// This function checks for safety features related to the heater and pump
+// It ensures the heater is turned off if it has been on too long without pump usage
+// and also checks if the heater should be turned off after a post-pump cooldown delay.
 void checkSafetyFeatures() {
     unsigned long currentTime = millis();
 
@@ -857,11 +872,11 @@ void loop() {
 
 #ifdef WEB_MODE
   server.handleClient(); // Handle web requests
-   MDNS.update(); // Keep mDNS active
+  // MDNS.update(); // Keep mDNS active
 #endif // WEB_MODE
 
-#if defined(SERIAL_MODE) || !defined(WEB_MODE) // Allow Serial input if in SERIAL_MODE or if WEB_MODE is disabled
-  // Handle Serial Input (non-blocking) with Pre-Check
+#if defined(SERIAL_MODE) || !defined(WEB_MODE) // Allow Serial input if in SERIAL_MODE is ON or if WEB_MODE is disabled
+  // Handle Serial Input (non-blocking) with Pre-Check that queue is able to fit all the commands
   while (Serial.available() > 0) {
     char c = Serial.read();
     if (c == '\n' || c == '\r') { // End of command line

@@ -1,0 +1,106 @@
+prompt_id,category,prompt,coffee_type,flavor_profile,recommended_temp,grind_size,pressure_bar,esp_command
+1,bold_espresso,Make me a bold espresso,espresso,"bold, full-bodied & bold",87.5,fine,9.0,D-0 R-74 V-180 G-1 R-0
+2,bold_espresso,I need a strong espresso shot,espresso,"bold, full-bodied & bold",87.5,fine,9.0,D-0 R-74 V-180 G-1 R-0
+3,bold_espresso,"Brew a dark, rich espresso",espresso,"chocolatey & chocolatey, bold",87.5,fine,9.0,D-0 R-74 V-180 G-1 R-0
+4,bold_espresso,I want something bold and intense,espresso,"bold, full-bodied & bold",87.5,fine,9.0,D-0 R-74 V-180 G-1 R-0
+5,bold_espresso,Give me the strongest espresso you've got,espresso,"bold, full-bodied & bold",87.5,fine,9.0,D-0 R-74 V-180 G-1 R-0
+6,fruity_light,I'd like something fruity and light,pour_over,"fruity, bright, full-bodied & fruity, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+7,fruity_light,Make me a bright coffee with citrus notes,pour_over,"fruity, bright, full-bodied & fruity, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+8,fruity_light,I want a floral and fruity cup,pour_over,"fruity, floral, bright & fruity, floral, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+9,fruity_light,Brew something with berry flavors and light body,pour_over,"fruity, bright, full-bodied & fruity, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+10,fruity_light,Give me a light roast with fruitiness,pour_over,"fruity, floral, bright & fruity, floral, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+11,chocolate_nutty,Brew a chocolatey and nutty coffee,french_press,"nutty, chocolatey, bright & nutty, chocolatey",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+12,chocolate_nutty,I want a smooth cup with chocolate notes,french_press,"chocolatey, smooth, bright & chocolatey, smooth",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+13,chocolate_nutty,Give me coffee with hazelnut and cocoa flavors,french_press,"nutty, chocolatey, bright & nutty, chocolatey",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+14,chocolate_nutty,Make a nutty medium roast,drip,"nutty, bright & nutty",,,,D-4 R-74 V-180 G-5 R-0
+15,chocolate_nutty,"Prepare a rich, chocolate-inspired brew",french_press,chocolate & chocolate,95.0,,1.0,D-5 R-8 V-180 G-5 R-0
+16,smooth_creamy,I need a creamy and smooth coffee,drip,"smooth, bright & smooth",,,,D-4 R-74 V-180 G-5 R-0
+17,smooth_creamy,Make me a mellow brew with a soft finish,drip,"nutty, balanced & balanced, nutty",,,,D-4 R-74 V-180 G-5 R-0
+18,smooth_creamy,Give me something smooth and not too acidic,drip,"smooth, bright & smooth",,,,D-4 R-74 V-180 G-5 R-0
+19,smooth_creamy,Brew a balanced and gentle coffee,drip,"smooth, bright & smooth",,,,D-4 R-74 V-180 G-5 R-0
+20,smooth_creamy,I want a velvety coffee with low bitterness,drip,"smooth, bright & smooth",,,,D-4 R-74 V-180 G-5 R-0
+21,iced_sweet,Make an iced sweet latte,latte,sweet & sweet,,,,D-4 R-74 V-180 G-5 R-0
+22,iced_sweet,Give me a cold brew with vanilla and caramel notes,cold_brew,caramel & caramel,,,,D-4 R-74 V-180 G-5 R-0
+23,iced_sweet,I want a sweet iced coffee,drip,"nutty, balanced & balanced, nutty",,,,D-4 R-74 V-180 G-5 R-0
+24,iced_sweet,Brew a refreshing and sugary iced latte,latte,sweet & sweet,,,,D-4 R-74 V-180 G-5 R-0
+25,iced_sweet,Prepare a chilled sweet coffee drink,drip,"nutty, balanced & balanced, nutty",,,,D-4 R-74 V-180 G-5 R-0
+26,bold_espresso,"Brew a dark, rich espresso that helps me relax",espresso,"chocolatey & chocolatey, bold",87.5,fine,9.0,D-0 R-74 V-180 G-1 R-0
+27,chocolate_nutty,Give me coffee with hazelnut and cocoa flavors with a kick,french_press,"nutty, chocolatey, bright & nutty, chocolatey",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+28,chocolate_nutty,I want a smooth cup with chocolate notes for a hot day,french_press,"chocolatey, smooth, bright & chocolatey, smooth",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+29,iced_sweet,Make an iced sweet latte now,latte,sweet & sweet,,,,D-4 R-74 V-180 G-5 R-0
+30,fruity_light,Make me a bright coffee with citrus notes this morning,pour_over,"fruity, bright, full-bodied & fruity, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+31,fruity_light,I want a floral and fruity cup for a hot day,pour_over,"fruity, floral, bright & fruity, floral, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+32,chocolate_nutty,Give me coffee with hazelnut and cocoa flavors please,french_press,"nutty, chocolatey, bright & nutty, chocolatey",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+33,bold_espresso,"Brew a dark, rich espresso this morning",espresso,"chocolatey & chocolatey, bold",87.5,fine,9.0,D-0 R-74 V-180 G-1 R-0
+34,fruity_light,I'd like something fruity and light now,pour_over,"fruity, bright, full-bodied & fruity, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+35,fruity_light,Make me a bright coffee with citrus notes this morning,pour_over,"fruity, bright, full-bodied & fruity, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+36,fruity_light,I want a floral and fruity cup please,pour_over,"fruity, floral, bright & fruity, floral, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+37,chocolate_nutty,Give me coffee with hazelnut and cocoa flavors please,french_press,"nutty, chocolatey, bright & nutty, chocolatey",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+38,fruity_light,I'd like something fruity and light this morning,pour_over,"fruity, bright, full-bodied & fruity, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+39,smooth_creamy,Brew a balanced and gentle coffee with a kick,drip,"smooth, bright & smooth",,,,D-4 R-74 V-180 G-5 R-0
+40,smooth_creamy,Give me something smooth and not too acidic now,drip,"smooth, bright & smooth",,,,D-4 R-74 V-180 G-5 R-0
+41,chocolate_nutty,"Prepare a rich, chocolate-inspired brew that helps me relax",french_press,chocolate & chocolate,95.0,,1.0,D-5 R-8 V-180 G-5 R-0
+42,chocolate_nutty,Brew a chocolatey and nutty coffee for a hot day,french_press,"nutty, chocolatey, bright & nutty, chocolatey",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+43,fruity_light,I'd like something fruity and light that helps me relax,pour_over,"fruity, bright, full-bodied & fruity, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+44,chocolate_nutty,Give me coffee with hazelnut and cocoa flavors with a kick,french_press,"nutty, chocolatey, bright & nutty, chocolatey",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+45,fruity_light,Give me a light roast with fruitiness,pour_over,"fruity, floral, bright & fruity, floral, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+46,smooth_creamy,Brew a balanced and gentle coffee for a hot day,drip,"smooth, bright & smooth",,,,D-4 R-74 V-180 G-5 R-0
+47,chocolate_nutty,I want a smooth cup with chocolate notes please,french_press,"chocolatey, smooth, bright & chocolatey, smooth",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+48,chocolate_nutty,Brew a chocolatey and nutty coffee this morning,french_press,"nutty, chocolatey, bright & nutty, chocolatey",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+49,bold_espresso,I want something bold and intense please,espresso,"bold, full-bodied & bold",87.5,fine,9.0,D-0 R-74 V-180 G-1 R-0
+50,fruity_light,I'd like something fruity and light this morning,pour_over,"fruity, bright, full-bodied & fruity, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+51,chocolate_nutty,"Prepare a rich, chocolate-inspired brew now",french_press,chocolate & chocolate,95.0,,1.0,D-5 R-8 V-180 G-5 R-0
+52,bold_espresso,Give me the strongest espresso you've got now,espresso,"bold, full-bodied & bold",87.5,fine,9.0,D-0 R-74 V-180 G-1 R-0
+53,iced_sweet,Make an iced sweet latte now,latte,sweet & sweet,,,,D-4 R-74 V-180 G-5 R-0
+54,iced_sweet,Brew a refreshing and sugary iced latte,latte,sweet & sweet,,,,D-4 R-74 V-180 G-5 R-0
+55,fruity_light,I'd like something fruity and light this morning,pour_over,"fruity, bright, full-bodied & fruity, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+56,bold_espresso,I want something bold and intense,espresso,"bold, full-bodied & bold",87.5,fine,9.0,D-0 R-74 V-180 G-1 R-0
+57,chocolate_nutty,I want a smooth cup with chocolate notes,french_press,"chocolatey, smooth, bright & chocolatey, smooth",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+58,chocolate_nutty,Make a nutty medium roast,drip,"nutty, bright & nutty",,,,D-4 R-74 V-180 G-5 R-0
+59,bold_espresso,I need a strong espresso shot please,espresso,"bold, full-bodied & bold",87.5,fine,9.0,D-0 R-74 V-180 G-1 R-0
+60,smooth_creamy,Make me a mellow brew with a soft finish that helps me relax,drip,"nutty, balanced & balanced, nutty",,,,D-4 R-74 V-180 G-5 R-0
+61,chocolate_nutty,Make a nutty medium roast for a hot day,drip,"nutty, bright & nutty",,,,D-4 R-74 V-180 G-5 R-0
+62,smooth_creamy,Give me something smooth and not too acidic that helps me relax,drip,"smooth, bright & smooth",,,,D-4 R-74 V-180 G-5 R-0
+63,fruity_light,Brew something with berry flavors and light body this morning,pour_over,"fruity, bright, full-bodied & fruity, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+64,iced_sweet,Give me a cold brew with vanilla and caramel notes for a hot day,cold_brew,caramel & caramel,,,,D-4 R-74 V-180 G-5 R-0
+65,fruity_light,I'd like something fruity and light for a hot day,pour_over,"fruity, bright, full-bodied & fruity, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+66,iced_sweet,Give me a cold brew with vanilla and caramel notes,cold_brew,caramel & caramel,,,,D-4 R-74 V-180 G-5 R-0
+67,chocolate_nutty,"Prepare a rich, chocolate-inspired brew that helps me relax",french_press,chocolate & chocolate,95.0,,1.0,D-5 R-8 V-180 G-5 R-0
+68,chocolate_nutty,Brew a chocolatey and nutty coffee for a hot day,french_press,"nutty, chocolatey, bright & nutty, chocolatey",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+69,fruity_light,I want a floral and fruity cup please,pour_over,"fruity, floral, bright & fruity, floral, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+70,fruity_light,Give me a light roast with fruitiness for a hot day,pour_over,"fruity, floral, bright & fruity, floral, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+71,chocolate_nutty,Give me coffee with hazelnut and cocoa flavors for a hot day,french_press,"nutty, chocolatey, bright & nutty, chocolatey",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+72,bold_espresso,Give me the strongest espresso you've got this morning,espresso,"bold, full-bodied & bold",87.5,fine,9.0,D-0 R-74 V-180 G-1 R-0
+73,iced_sweet,Prepare a chilled sweet coffee drink,drip,"nutty, balanced & balanced, nutty",,,,D-4 R-74 V-180 G-5 R-0
+74,smooth_creamy,Give me something smooth and not too acidic this morning,drip,"smooth, bright & smooth",,,,D-4 R-74 V-180 G-5 R-0
+75,iced_sweet,I want a sweet iced coffee that helps me relax,drip,"nutty, balanced & balanced, nutty",,,,D-4 R-74 V-180 G-5 R-0
+76,smooth_creamy,I need a creamy and smooth coffee with a kick,drip,"smooth, bright & smooth",,,,D-4 R-74 V-180 G-5 R-0
+77,iced_sweet,I want a sweet iced coffee that helps me relax,drip,"nutty, balanced & balanced, nutty",,,,D-4 R-74 V-180 G-5 R-0
+78,chocolate_nutty,Make a nutty medium roast for a hot day,drip,"nutty, bright & nutty",,,,D-4 R-74 V-180 G-5 R-0
+79,iced_sweet,Prepare a chilled sweet coffee drink for a hot day,drip,"nutty, balanced & balanced, nutty",,,,D-4 R-74 V-180 G-5 R-0
+80,bold_espresso,I want something bold and intense for a hot day,espresso,"bold, full-bodied & bold",87.5,fine,9.0,D-0 R-74 V-180 G-1 R-0
+81,chocolate_nutty,Make a nutty medium roast with a kick,drip,"nutty, bright & nutty",,,,D-4 R-74 V-180 G-5 R-0
+82,fruity_light,Brew something with berry flavors and light body with a kick,pour_over,"fruity, bright, full-bodied & fruity, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+83,fruity_light,Make me a bright coffee with citrus notes that helps me relax,pour_over,"fruity, bright, full-bodied & fruity, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+84,smooth_creamy,I need a creamy and smooth coffee for a hot day,drip,"smooth, bright & smooth",,,,D-4 R-74 V-180 G-5 R-0
+85,fruity_light,I'd like something fruity and light for a hot day,pour_over,"fruity, bright, full-bodied & fruity, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+86,iced_sweet,Prepare a chilled sweet coffee drink with a kick,drip,"nutty, balanced & balanced, nutty",,,,D-4 R-74 V-180 G-5 R-0
+87,bold_espresso,Give me the strongest espresso you've got that helps me relax,espresso,"bold, full-bodied & bold",87.5,fine,9.0,D-0 R-74 V-180 G-1 R-0
+88,iced_sweet,Prepare a chilled sweet coffee drink now,drip,"nutty, balanced & balanced, nutty",,,,D-4 R-74 V-180 G-5 R-0
+89,bold_espresso,I want something bold and intense this morning,espresso,"bold, full-bodied & bold",87.5,fine,9.0,D-0 R-74 V-180 G-1 R-0
+90,chocolate_nutty,Brew a chocolatey and nutty coffee now,french_press,"nutty, chocolatey, bright & nutty, chocolatey",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+91,smooth_creamy,I need a creamy and smooth coffee,drip,"smooth, bright & smooth",,,,D-4 R-74 V-180 G-5 R-0
+92,chocolate_nutty,Brew a chocolatey and nutty coffee this morning,french_press,"nutty, chocolatey, bright & nutty, chocolatey",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+93,fruity_light,Give me a light roast with fruitiness please,pour_over,"fruity, floral, bright & fruity, floral, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+94,chocolate_nutty,Give me coffee with hazelnut and cocoa flavors this morning,french_press,"nutty, chocolatey, bright & nutty, chocolatey",91.0,,1.0,D-3 R-8 V-180 G-5 R-0
+95,iced_sweet,Prepare a chilled sweet coffee drink now,drip,"nutty, balanced & balanced, nutty",,,,D-4 R-74 V-180 G-5 R-0
+96,smooth_creamy,Give me something smooth and not too acidic this morning,drip,"smooth, bright & smooth",,,,D-4 R-74 V-180 G-5 R-0
+97,chocolate_nutty,Make a nutty medium roast for a hot day,drip,"nutty, bright & nutty",,,,D-4 R-74 V-180 G-5 R-0
+98,bold_espresso,I want something bold and intense for a hot day,espresso,"bold, full-bodied & bold",87.5,fine,9.0,D-0 R-74 V-180 G-1 R-0
+99,chocolate_nutty,Make a nutty medium roast with a kick,drip,"nutty, bright & nutty",,,,D-4 R-74 V-180 G-5 R-0
+100,chocolate_nutty,"Prepare a rich, chocolate-inspired brew this morning",french_press,chocolate & chocolate,95.0,,1.0,D-5 R-8 V-180 G-5 R-0
+101,iced_sweet,I want a sweet iced coffee now,drip,"nutty, balanced & balanced, nutty",,,,D-4 R-74 V-180 G-5 R-0
+102,smooth_creamy,Give me something smooth and not too acidic this morning,drip,"smooth, bright & smooth",,,,D-4 R-74 V-180 G-5 R-0
+103,iced_sweet,Make an iced sweet latte that helps me relax,latte,sweet & sweet,,,,D-4 R-74 V-180 G-5 R-0
+104,fruity_light,I'd like something fruity and light now,pour_over,"fruity, bright, full-bodied & fruity, bright",97.0,,1.0,D-6 R-8 V-180 G-5 R-0
+105,smooth_creamy,Make me a mellow brew with a soft finish please,drip,"nutty, balanced & balanced, nutty",,,,D-4 R-74 V-180 G-5 R-0

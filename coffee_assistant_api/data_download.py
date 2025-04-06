@@ -2,7 +2,7 @@
 import requests
 import os
 
-DATA_URL = "https://raw.githubusercontent.com/jldbc/coffee-quality-database/main/data/arabica_data_cleaned.csv"
+DATA_URL = "https://raw.githubusercontent.com/jldbc/coffee-quality-database/refs/heads/master/data/arabica_data_cleaned.csv"
 SAVE_PATH = "data/arabica_data_cleaned.csv"
 
 print(f"Downloading data from {DATA_URL}...")

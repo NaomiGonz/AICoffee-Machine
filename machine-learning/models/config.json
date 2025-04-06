@@ -12,7 +12,7 @@
         "strength",
         "sweetness",
         "fruitiness",
-        "maltiness"
+        "bitterness"
     ],
     "numeric_cols": [
         "extraction_pressure",
@@ -26,5 +26,19 @@
     ],
     "data_path": "data/",
     "model_path": "models/",
+    "cup_sizes": {
+        "small": 89.0,
+        "medium": 236.588,
+        "large": 354.882
+    },
+    "available_beans": [
+        "arabica",
+        "robusta",
+        "ethiopian",
+        "colombian",
+        "brazilian"
+    ],
+    "default_ratio": 15,
+    "grind_size": 400,
     "has_quality_db": false
 }

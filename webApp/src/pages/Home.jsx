@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { doc, collection, getDocs, addDoc, deleteDoc, query, where } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { db } from "../tools/firebase";
 import NavBar from "../components/NavBar.jsx";
 import CoffeeCard from "../components/CoffeeCard.jsx";
-import BrewHistoryCard from "../components/BrewHistoryCard.jsx";
 
 import col from "../assets/col.jpeg";
 import eth from "../assets/eth.webp";
@@ -22,209 +19,234 @@ const featuredCoffees = [
   { id: 6, name: "Brazilian Santos", image: bra, description: "Nutty and sweet" },
 ];
 
+const exampleQueries = [
+  "Fruity espresso",
+  "Large cappuccino",
+  "Nutty pour-over",
+  "Strong dark roast",
+  "Smooth coffee",
+  "Ethiopian light roast"
+];
+
 const Home = () => {
-  const [bitterness, setBitterness] = useState(5);
-  const [acidity, setAcidity] = useState(5);
-  const [sweetness, setSweetness] = useState(5);
-  const [strength, setStrength] = useState(5);
-  const [fruitiness, setFruitiness] = useState(5);
-  const [brewHistory, setBrewHistory] = useState([]);
-  const [savedBrews, setSavedBrews] = useState([]);
+  const [queryInput, setQueryInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [brewResult, setBrewResult] = useState(null);
+  const [showExamples, setShowExamples] = useState(false);
+  const [servingSize, setServingSize] = useState(7.0);  // Default to 7 oz
 
   const auth = getAuth();
-  const uid = auth.currentUser?.uid;
+  const user = auth.currentUser;
 
-  const handleBrew = async (flavor = null) => {
+  const ServingSizeSelector = () => {
+    const sizes = [
+      { label: '3 oz', value: 3.0 },
+      { label: '7 oz', value: 7.0 },
+      { label: '10 oz', value: 10.0 }
+    ];
+
+    return (
+      <div className="flex space-x-2 mb-4">
+        <p className="text-sm font-medium text-gray-700 mr-2">Serving Size:</p>
+        {sizes.map((size) => (
+          <button
+            key={size.value}
+            onClick={() => setServingSize(size.value)}
+            className={`px-3 py-1.5 text-xs rounded-md border ${
+              servingSize === size.value 
+                ? 'bg-[var(--color-hgreen)] text-white' 
+                : 'bg-white text-gray-700 border-gray-300'
+            }`}
+          >
+            {size.label}
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  const handleNaturalLanguageQuery = async (query = queryInput) => {
+    if (!query.trim()) {
+      alert("Please enter a coffee request");
+      return;
+    }
+
     try {
-      const user = auth.currentUser;
-      if (!user) {
-        alert("You must be logged in to brew coffee.");
-        return;
+      setIsLoading(true);
+      
+      // Get token if user is logged in
+      let token = null;
+      if (user) {
+        token = await user.getIdToken();
       }
-      const token = await user.getIdToken();
-
-      const flavorProfile = flavor || {
-        acidity: Number(acidity),
-        strength: Number(strength),
-        sweetness: Number(sweetness),
-        fruitiness: Number(fruitiness),
-        maltiness: Number(bitterness),
-      };
 
       const response = await fetch("http://localhost:8000/brew", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          ...(token && { Authorization: `Bearer ${token}` }),
         },
-        body: JSON.stringify({ desired_flavor: flavorProfile }),
+        body: JSON.stringify({ 
+          query, 
+          serving_size: servingSize 
+        }),
       });
 
-      const data = await response.json();
-      alert(`☕ Brew Settings:\nTemperature: ${data.parameters.temperature}°C\nWater: ${data.parameters.dose_size * 2.5}ml\nPressure: ${data.parameters.extraction_pressure} bars\nBeans: ${data.parameters.bean_type}`);
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
 
-      fetchBrews();
+      const data = await response.json();
+      setBrewResult(data);
     } catch (error) {
       console.error("Error:", error);
       alert("Error calculating brew settings");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const fetchBrews = async () => {
-    if (!uid) {
-      console.warn("No user logged in, skipping Firestore fetch.");
-      return;
-    }
-
-    try {
-      const userDocRef = doc(db, "users", uid);
-      const brewsRef = collection(userDocRef, "brews");
-
-      const snapshot = await getDocs(brewsRef);
-
-      const brews = snapshot.docs.map((doc) => {
-        const data = doc.data();
-        const timestamp = data.timestamp?.toDate?.() || new Date();
-
-        return {
-          id: doc.id,
-          ...data,
-          timestamp,
-        };
-      });
-
-      setBrewHistory(
-        brews
-          .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-          .slice(0, 10)
-      );
-    } catch (error) {
-      console.error("[Firestore] Error fetching brews:", error);
-    }
+  const handleUseExample = (example) => {
+    setQueryInput(example);
+    setShowExamples(false);
   };
-
-  const fetchSavedBrews = async () => {
-    if (!uid) return;
-
-    try {
-      const savedRef = collection(doc(db, "users", uid), "saved_brews");
-      const snapshot = await getDocs(savedRef);
-      const saved = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setSavedBrews(saved);
-    } catch (error) {
-      console.error("Error fetching saved brews:", error);
-    }
-  };
-
-  const handleSaveBrew = async (brew) => {
-    if (!uid) return;
-
-    const name = prompt("Enter a name for this saved brew:", "My Custom Brew");
-    if (!name) return;
-
-    try {
-      const savedRef = collection(doc(db, "users", uid), "saved_brews");
-      const existing = savedBrews.find(
-        (saved) => JSON.stringify(saved.desired_flavor) === JSON.stringify(brew.desired_flavor)
-      );
-
-      if (existing) {
-        await deleteDoc(doc(savedRef, existing.id));
-        alert("Removed from saved brews.");
-      } else {
-        await addDoc(savedRef, {
-          name,
-          desired_flavor: brew.desired_flavor,
-          parameters: brew.parameters,
-          timestamp: new Date(),
-        });
-        alert("Saved brew successfully.");
-      }
-
-      fetchSavedBrews();
-    } catch (error) {
-      console.error("Error toggling saved brew:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchBrews();
-    fetchSavedBrews();
-  }, [uid]);
-
-  const sliders = [
-    { label: "Bitterness", value: bitterness, setter: setBitterness },
-    { label: "Acidity", value: acidity, setter: setAcidity },
-    { label: "Sweetness", value: sweetness, setter: setSweetness },
-    { label: "Strength", value: strength, setter: setStrength },
-    { label: "Fruitiness", value: fruitiness, setter: setFruitiness },
-  ];
 
   return (
     <div className="min-h-screen w-full bg-[var(--color-mint)]">
       <NavBar />
-      <main className="pt-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-        {/* Craft Section */}
-        <section>
-          <h2 className="text-3xl font-extrabold text-[var(--color-roast)] mb-6 tracking-tight">Craft Your Perfect Cup</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6">
-            {sliders.map(({ label, value, setter }, idx) => (
-              <div key={idx} className="flex flex-col gap-1">
-                <label className="text-[var(--color-roast)] text-sm font-medium">{label}: {value}</label>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  value={value}
-                  onChange={(e) => setter(Number(e.target.value))}
-                  className="accent-[var(--color-hgreen)] cursor-pointer"
-                />
+      <main className="pt-16 md:pt-24 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 space-y-6 md:space-y-12">
+        {/* Natural Language Query Section */}
+        <section className="bg-white rounded-lg shadow-md p-4 md:p-6">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-[var(--color-roast)] mb-4 md:mb-6 tracking-tight">
+            Craft Your Perfect Cup
+          </h2>
+          
+          <div className="mb-4">
+            {/* Serving Size Selector */}
+            <ServingSizeSelector />
+
+            <label htmlFor="coffee-query" className="block text-sm font-medium text-gray-700 mb-2">
+              Tell us what kind of coffee you want
+            </label>
+            
+            {/* Mobile-optimized input with button below */}
+            <div className="flex flex-col gap-2">
+              <input
+                id="coffee-query"
+                type="text"
+                className="w-full px-3 py-2 md:px-4 md:py-3 rounded-md border border-gray-300 focus:ring-[var(--color-hgreen)] focus:border-[var(--color-hgreen)] text-base"
+                placeholder="How would you like your coffee?"
+                value={queryInput}
+                onChange={(e) => setQueryInput(e.target.value)}
+              />
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleNaturalLanguageQuery()}
+                  disabled={isLoading}
+                  className="flex-1 px-4 py-2 md:py-3 border border-transparent text-sm md:text-base font-medium rounded-md shadow-sm text-white bg-[var(--color-hgreen)] hover:bg-[var(--color-roast)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-hgreen)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? "Brewing..." : "Brew Coffee"}
+                </button>
+                
+                <button
+                  onClick={() => setShowExamples(!showExamples)}
+                  className="px-3 py-2 md:py-3 border border-gray-300 text-sm md:text-base font-medium rounded-md shadow-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-hgreen)]"
+                >
+                  Examples
+                </button>
               </div>
-            ))}
+            </div>
           </div>
-          <button
-            onClick={() => handleBrew()}
-            className="mt-6 px-6 py-2 bg-[var(--color-hgreen)] text-white rounded-md shadow-sm hover:shadow-lg transition"
-          >
-            Brew
-          </button>
+          
+          {/* Collapsible examples section */}
+          {showExamples && (
+            <div className="mt-2 mb-3 bg-gray-50 p-3 rounded-md">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Try one of these:</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {exampleQueries.map((example, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleUseExample(example)}
+                    className="text-left px-3 py-2 border border-gray-300 text-xs md:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none truncate"
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
+
+        {/* Brew Results Section (Appears when there's a result) */}
+        {brewResult && (
+          <section className="bg-white rounded-lg shadow-md p-4 md:p-6">
+            <h2 className="text-xl md:text-2xl font-bold text-[var(--color-roast)] mb-3 md:mb-4">Your Brew Results</h2>
+            
+            {/* Mobile-friendly grid layout */}
+            <div className="space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-6">
+              <div className="bg-gray-50 rounded-md p-3">
+                <h3 className="text-md md:text-lg font-medium mb-2">Coffee Details</h3>
+                <p className="text-sm md:text-base text-gray-700 mb-1">
+                  <span className="font-semibold">Type:</span> {brewResult.coffee_type}
+                </p>
+                <p className="text-sm md:text-base text-gray-700 mb-1">
+                  <span className="font-semibold">Temperature:</span> {brewResult.recommended_temperature}°C
+                </p>
+                <p className="text-sm md:text-base text-gray-700">
+                  <span className="font-semibold">Serving Size:</span> {servingSize} oz
+                </p>
+                <p className="text-sm md:text-base text-gray-700">
+                  <span className="font-semibold">Flavor Profile:</span> {brewResult.flavor_profile}
+                </p>
+              </div>
+              
+              <div>
+                <h3 className="text-md md:text-lg font-medium mb-2">Beans</h3>
+                <ul className="space-y-2">
+                  {brewResult.beans && brewResult.beans.map((bean, idx) => (
+                    <li key={idx} className="p-2 bg-gray-50 rounded text-sm md:text-base">
+                      <p className="font-semibold truncate">{bean.name} ({bean.roast})</p>
+                      <p className="text-xs md:text-sm text-gray-600">Amount: {bean.amount_g}g</p>
+                      <p className="text-xs md:text-sm text-gray-600">Notes: {bean.notes}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            
+            {brewResult.additional_notes && brewResult.additional_notes.length > 0 && (
+              <div className="mt-4">
+                <h3 className="text-md md:text-lg font-medium mb-2">Brewing Notes</h3>
+                <ul className="list-disc pl-5 space-y-1 text-sm md:text-base">
+                  {brewResult.additional_notes.map((note, idx) => (
+                    <li key={idx} className="text-gray-700">{note}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            <div className="mt-4 md:mt-6 flex justify-end">
+              <button
+                onClick={() => setBrewResult(null)}
+                className="text-sm md:text-base px-3 py-1.5 md:px-4 md:py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </section>
+        )}
 
         {/* Featured Coffees */}
         <section>
-          <h2 className="text-3xl font-extrabold text-[var(--color-roast)] mb-6 tracking-tight">Featured Coffees</h2>
-          <div className="overflow-x-auto flex flex-nowrap gap-4 pb-2">
-            {featuredCoffees.map((coffee) => (
-              <CoffeeCard key={coffee.id} {...coffee} />
-            ))}
-          </div>
-        </section>
-
-        {/* Brew History */}
-        <section>
-          <h2 className="text-3xl font-extrabold text-[var(--color-roast)] mb-6 tracking-tight">Brew History</h2>
-          {brewHistory.length === 0 ? (
-            <p className="text-gray-600">No brews found.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {brewHistory.map((brew) => {
-                const isAlreadySaved = savedBrews.some(
-                  (saved) =>
-                    JSON.stringify(saved.desired_flavor) === JSON.stringify(brew.desired_flavor)
-                );
-
-                return (
-                  <BrewHistoryCard
-                    key={brew.id}
-                    brew={brew}
-                    onBrewAgain={() => handleBrew(brew.desired_flavor)}
-                    onSave={() => handleSaveBrew(brew)}
-                    isSaved={isAlreadySaved}
-                  />
-                );
-              })}
+          <h2 className="text-2xl md:text-3xl font-extrabold text-[var(--color-roast)] mb-4 md:mb-6 tracking-tight">Featured Coffees</h2>
+          <div className="overflow-x-auto -mx-3 px-3 pb-2">
+            <div className="flex flex-nowrap gap-3 md:gap-4">
+              {featuredCoffees.map((coffee) => (
+                <CoffeeCard key={coffee.id} {...coffee} />
+              ))}
             </div>
-          )}
+          </div>
         </section>
       </main>
     </div>

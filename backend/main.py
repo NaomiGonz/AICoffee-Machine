@@ -1,24 +1,31 @@
-import numpy as np
-import pandas as pd
 import os
 import sys
 import json
 import logging
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 
-# Add the machine-learning directory to the Python path
-sys.path.append(os.path.abspath('../machine-learning')) 
-from coffee_ml import CoffeeMachineLearning
+# Add the LLM directory to the Python path
+LLM_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'llm'))
+sys.path.append(LLM_DIR)
 
-import firebase_admin
-from firebase_admin import credentials, firestore, auth
+# Import LLM components
+try:
+    from src.nlp.request_parser import CoffeeRequestParser
+    from src.nlp.prompt_generator import PromptGenerator
+    from src.database.coffee_database import CoffeeDatabase
+    from src.database.bean_selector import BeanSelector
+    from src.brewing.recommendation_engine import RecommendationEngine
+    from src.brewing.parameter_calculator import BrewingParameterCalculator
+    llm_components_loaded = True
+except ImportError as e:
+    print(f"Error importing LLM components: {e}")
+    llm_components_loaded = False
+
 from fastapi import Depends, HTTPException, FastAPI, Query, Header, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
-import httpx
-from httpx import BasicAuth
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 DEBUG_MODE = os.getenv("DEBUG_MODE", "true").lower() == "true"
@@ -31,11 +38,11 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
-logger = logging.getLogger("aicoffee")
+logger = logging.getLogger("coffee-brewing-assistant")
 
 app = FastAPI(
-    title="AI Coffee Machine API",
-    description="API for AI-powered coffee brewing parameters",
+    title="Coffee Brewing Assistant API",
+    description="API for LLM-powered coffee brewing recommendations",
     version="1.0.0"
 )
 
@@ -48,245 +55,217 @@ app.add_middleware(
 
 security = HTTPBearer(auto_error=False)
 
-firebase_enabled = False
-db = None
-try:
-    if os.path.exists("firebase-admin-key.json"):
-        cred = credentials.Certificate("firebase-admin-key.json")
-        firebase_admin.initialize_app(cred)
-        db = firestore.client()
-        firebase_enabled = True
-        logger.info("Firebase initialized successfully")
-    else:
-        logger.warning("Firebase credentials not found, continuing without Firebase")
-except Exception as e:
-    logger.error(f"Error initializing Firebase: {e}")
+# Conversion constants
+OZ_TO_ML = 29.5735  # 1 fluid ounce = 29.5735 ml
+G_PER_ML = 0.75     # Approximate density of ground coffee
 
-ml_base_dir = os.path.abspath('../machine-learning')
-ml_data_dir = os.path.join(ml_base_dir, "data")
-ml_models_dir = os.path.join(ml_base_dir, "models")
-ml_quality_db_dir = os.path.join(ml_data_dir, "quality_db")
+# Size definitions with conversions
+SERVING_SIZES = {
+    3.0: {
+        'oz': 3.0, 
+        'ml': 89.0,  # 3 oz converted to ml
+        'coffee_g': 21.0,  # Approximate 7g per oz
+        'water_ml': 60.0,  # Slightly less water than volume
+    },
+    7.0: {
+        'oz': 7.0, 
+        'ml': 207.0,  # 7 oz converted to ml
+        'coffee_g': 49.0,  # Approximate 7g per oz
+        'water_ml': 180.0,  # Slightly less water than volume
+    },
+    10.0: {
+        'oz': 10.0, 
+        'ml': 295.0,  # 10 oz converted to ml
+        'coffee_g': 70.0,  # Approximate 7g per oz
+        'water_ml': 260.0,  # Slightly less water than volume
+    }
+}
 
-os.makedirs(ml_data_dir, exist_ok=True)
-os.makedirs(ml_models_dir, exist_ok=True)
-os.makedirs(ml_quality_db_dir, exist_ok=True)
-
-ml = CoffeeMachineLearning(
-    data_path=ml_data_dir,
-    model_path=ml_models_dir,
-    quality_db_path=ml_quality_db_dir
-)
-
-try:
-    ml.load_config()
-    models_loaded = True
-    logger.info("ML models loaded successfully")
-except Exception as e:
-    models_loaded = False
-    logger.warning(f"Could not load ML models: {e}. Models will need to be trained.")
-
-class BrewParameters(BaseModel):
-    extraction_pressure: float
-    temperature: float
-    ground_size: float
-    extraction_time: float
-    dose_size: float
-    bean_type: str
-    processing_method: Optional[str] = None
-
-class FlavorProfile(BaseModel):
-    acidity: float
-    strength: float
-    sweetness: float
-    fruitiness: float
-    maltiness: float
+# Initialize LLM components if available
+if llm_components_loaded:
+    try:
+        coffee_db = CoffeeDatabase()
+        bean_selector = BeanSelector(coffee_db)
+        recommendation_engine = RecommendationEngine(coffee_db, bean_selector)
+        request_parser = CoffeeRequestParser()
+        prompt_generator = PromptGenerator()
+        logger.info("LLM components initialized successfully")
+    except Exception as e:
+        logger.error(f"Error initializing LLM components: {e}")
+        llm_components_loaded = False
 
 class BrewRequest(BaseModel):
-    desired_flavor: FlavorProfile
+    """Request with either flavor profile or natural language query."""
+    desired_flavor: Optional[Dict[str, float]] = None
+    query: Optional[str] = None
+    serving_size: Optional[float] = Field(
+        default=7.0, 
+        description="Serving size in fluid ounces (3, 7, or 10)",
+        ge=3.0, 
+        le=10.0
+    )
 
-class BrewResponse(BaseModel):
-    parameters: BrewParameters
-    esp_command: str
-
-class FlavorPredictionRequest(BaseModel):
-    parameters: BrewParameters
-
-class FlavorPredictionResponse(BaseModel):
-    flavor_profile: FlavorProfile
-
-class BrewFeedbackRequest(BaseModel):
-    parameters: BrewParameters
-    flavor_ratings: FlavorProfile
-
-class FeatureImpactRequest(BaseModel):
-    feature: str
-    target: str
-    range_min: Optional[float] = None
-    range_max: Optional[float] = None
-    n_points: int = 20
-
-class FeatureImpactResponse(BaseModel):
-    feature_values: List[float]
-    predicted_values: List[float]
-
-class TrainingStatus(BaseModel):
-    status: str
-    message: str
-    metrics: Optional[Dict] = None
-
-async def get_current_user(request: Request, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
-    if not firebase_enabled:
-        logger.debug("Firebase disabled: using development_user")
-        return "development_user"
-
-    if credentials:
-        try:
-            decoded_token = auth.verify_id_token(credentials.credentials)
-            uid = decoded_token["uid"]
-            logger.debug(f"Authenticated user: {uid}")
-            return uid
-        except Exception as e:
-            logger.warning(f"Token verification failed: {e}")
-
+async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    """
+    Simple user authentication function.
+    In development mode, returns a default user ID.
+    """
     if ENVIRONMENT == "development" or DEBUG_MODE:
-        logger.debug("Development fallback to development_user")
         return "development_user"
-
+    
+    # In a real implementation, you would verify the token
+    if credentials:
+        return credentials.credentials  # This would be the token or user ID
+    
     raise HTTPException(status_code=401, detail="Authentication required")
 
-def ml_output_to_command(brew_result: Dict) -> str:
+def ml_output_to_command(brew_params: Dict, serving_details: Dict) -> str:
+    """Convert brewing parameters to machine command."""
     commands = []
 
-    temperature_celsius = brew_result["temperature"]
+    # Temperature command
+    temperature_celsius = brew_params.get("recommended_temp_c", 93)
     if temperature_celsius > 90:
         delay_seconds = int((temperature_celsius - 85) / 2)
         commands.append(f"D-{delay_seconds}")
     else:
         commands.append("D-0")
 
-    pressure_bars = brew_result['extraction_pressure']
+    # Pressure command
+    pressure_bars = brew_params.get('pressure_bar', 9.0)
     motor_speed = int(pressure_bars * 8.33)
     commands.append(f"R-{motor_speed}")
 
-    dose_grams = brew_result['dose_size']
-    water_volume = int(dose_grams * 2.5)
+    # Water volume command (using ml from serving details)
+    water_volume = int(serving_details['water_ml'])
     commands.append(f"V-{water_volume}")
 
-    grind_microns = brew_result['ground_size']
-    grind_setting = int(10 - (grind_microns - 100) / 90)
-    commands.append(f"G-{max(1, min(10, grind_setting))}")
+    # Grind size command
+    grind_map = {
+        'fine': 1, 'medium-fine': 3, 'medium': 5, 
+        'medium-coarse': 7, 'coarse': 9
+    }
+    grind_setting = grind_map.get(brew_params.get('ideal_grind_size', 'medium').lower(), 5)
+    commands.append(f"G-{grind_setting}")
 
     commands.append("R-0")
 
     return " ".join(commands)
 
-def check_models_loaded():
-    global models_loaded
-    if not models_loaded:
-        if ENVIRONMENT == "development" or DEBUG_MODE:
-            try:
-                synthetic_data_path = os.path.join(ml_data_dir, 'synthetic_brewing_data.csv')
-                if not os.path.exists(synthetic_data_path):
-                    from test_coffee_ml import generate_synthetic_data
-                    data = generate_synthetic_data(n_samples=100)
-                    data.to_csv(synthetic_data_path, index=False)
-                else:
-                    data = pd.read_csv(synthetic_data_path)
-                ml.train_models(data)
-                ml.save_config()
-                models_loaded = True
-                logger.info("Models trained with synthetic data for development")
-                return
-            except Exception as e:
-                logger.error(f"Error auto-training models: {e}")
-        raise HTTPException(status_code=503, detail="ML models not trained.")
-
-def ensure_valid_parameters(parameters: Dict) -> Dict:
-    parameters = parameters or {}
-
-    for k, v in parameters.items():
-        if isinstance(v, np.generic):
-            parameters[k] = v.item()
-
-    defaults = {
-        'extraction_pressure': 9.0,
-        'temperature': 93.0,
-        'ground_size': 400.0,
-        'extraction_time': 30.0,
-        'dose_size': 18.0,
-        'bean_type': 'arabica',
-    }
-
-    for key, default_value in defaults.items():
-        if key not in parameters or parameters[key] is None:
-            logger.warning(f"Parameter {key} missing or None, using default: {default_value}")
-            parameters[key] = default_value
-
-    return parameters
-
 @app.get("/")
-async def root():
+async def status():
+    """API status endpoint."""
     return {
         "status": "online",
-        "models_loaded": models_loaded,
-        "firebase_enabled": firebase_enabled,
         "environment": ENVIRONMENT,
         "debug_mode": DEBUG_MODE,
-        "message": "AI Coffee Machine API is running"
+        "llm_components_loaded": llm_components_loaded,
+        "message": "Coffee Brewing Assistant API is running"
     }
 
-@app.post("/brew", response_model=BrewResponse)
-async def calculate_brew(
+@app.post("/brew")
+async def brew(
     request: BrewRequest,
-    uid: str = Depends(get_current_user)
+    user_id: str = Depends(get_current_user)
 ):
-    logger.info(f"Brew request received for user {uid}")
-    check_models_loaded()
-
+    """
+    Unified brewing endpoint that supports both flavor profile and natural language inputs.
+    """
+    logger.info(f"Brew request received from user {user_id}")
+    
+    # Validate and retrieve serving size details
+    serving_details = SERVING_SIZES.get(request.serving_size, SERVING_SIZES[7.0])
+    
     try:
-        desired_flavor = request.desired_flavor.dict()
-        parameters = ml.suggest_brewing_parameters(desired_flavor)
-        logger.debug(f"Raw parameters from ML: {parameters}")
-
-        parameters = ensure_valid_parameters(parameters)
-        command_str = ml_output_to_command(parameters)
-
-        if firebase_enabled and db:
-            try:
-                history_ref = db.collection("users").document(uid).collection("brews")
-                history_entry = {
-                    "desired_flavor": desired_flavor,
-                    "parameters": parameters,
-                    "esp_command": command_str,
-                    "timestamp": firestore.SERVER_TIMESTAMP
-                }
-                logger.debug(f"Saving to Firestore: {history_entry}")
-                history_ref.add(history_entry)
-                logger.info(f"Saved brew request to Firebase for user {uid}")
-            except Exception as e:
-                logger.error(f"Firebase save error: {e}")
-
-        brew_params = BrewParameters(**parameters)
-        return BrewResponse(parameters=brew_params, esp_command=command_str)
-
+        # Check if LLM components are loaded
+        if not llm_components_loaded:
+            raise HTTPException(
+                status_code=503, 
+                detail="LLM components not available. Please check server logs."
+            )
+        
+        # Check which input method is being used
+        if request.query:
+            # Natural language query path
+            logger.info(f"Natural language query: '{request.query}'")
+            
+            # Parse the natural language request
+            parsed_request = request_parser.parse_coffee_request(request.query)
+            logger.debug(f"Parsed request: {parsed_request}")
+            
+            # Extract key information
+            coffee_type = parsed_request.get('coffee_type', 'espresso')
+            flavor_notes = parsed_request.get('flavor_notes', [])
+            roast_preference = parsed_request.get('roast_level')
+            user_mood = parsed_request.get('user_mood')
+            
+            # Generate recommendation
+            recommendation = recommendation_engine.generate_recommendation(
+                flavor_preferences=flavor_notes,
+                coffee_type=coffee_type,
+                serving_size=serving_details['coffee_g'],  # Pass coffee weight in grams
+                user_mood=user_mood,
+                roast_preference=roast_preference
+            )
+            
+            # Store the query with the recommendation
+            recommendation["query"] = request.query
+            recommendation["serving_details"] = serving_details
+            
+            # Generate machine command
+            command_str = ml_output_to_command(
+                recommendation.get("brewing_parameters", {}), 
+                serving_details
+            )
+            recommendation["esp_command"] = command_str
+            
+            return recommendation
+            
+        elif request.desired_flavor:
+            # Traditional flavor profile path for backward compatibility
+            desired_flavor = request.desired_flavor
+            logger.info(f"Flavor profile request: {desired_flavor}")
+            
+            # Map the traditional inputs to flavor notes
+            flavor_mapping = {
+                "acidity": ["bright", "fruity"],
+                "strength": ["bold", "strong"],
+                "sweetness": ["sweet", "smooth"],
+                "fruitiness": ["fruity", "berry"],
+                "maltiness": ["nutty", "chocolate"]
+            }
+            
+            flavor_notes = []
+            for param, flavors in flavor_mapping.items():
+                if desired_flavor.get(param, 5) > 7:  # Consider high values as preference
+                    flavor_notes.append(flavors[0])
+            
+            # Default to balanced if no strong preferences
+            if not flavor_notes:
+                flavor_notes = ["balanced"]
+            
+            # Generate recommendation using the recommendation engine
+            recommendation = recommendation_engine.generate_recommendation(
+                flavor_preferences=flavor_notes,
+                coffee_type="espresso",  # Default
+                serving_size=serving_details['coffee_g'],  # Pass coffee weight in grams
+                user_mood=None
+            )
+            
+            # Add serving details to recommendation
+            recommendation["serving_details"] = serving_details
+            
+            return recommendation
+        
+        else:
+            raise HTTPException(status_code=400, detail="Either 'query' or 'desired_flavor' must be provided")
+        
     except Exception as e:
-        logger.error(f"Error during brew calculation: {e}")
+        logger.error(f"Error processing brew request: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
-
-    synthetic_data_path = os.path.join(ml_data_dir, 'synthetic_brewing_data.csv')
-    if not os.path.exists(synthetic_data_path):
-        try:
-            logger.info("Generating synthetic data...")
-            from test_coffee_ml import generate_synthetic_data
-            data = generate_synthetic_data(n_samples=100)
-            data.to_csv(synthetic_data_path, index=False)
-            ml.train_models(data)
-            ml.save_config()
-            models_loaded = True
-        except Exception as e:
-            logger.error(f"Error generating synthetic data: {e}")
-
+    
+    logger.info("Starting Coffee Brewing Assistant API")
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

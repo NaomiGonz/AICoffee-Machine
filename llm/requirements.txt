@@ -1,0 +1,89 @@
+# Core Python Dependencies
+numpy>=1.21.0
+pandas>=1.3.0
+typing-extensions>=4.0.0
+
+# Web Framework
+fastapi>=0.95.0
+uvicorn>=0.22.0
+python-multipart>=0.0.6
+pydantic>=2.0.0
+
+# Machine Learning and NLP
+torch>=1.13.0
+transformers>=4.30.0
+accelerate>=0.20.0  # For model loading
+sentencepiece  # For tokenization
+
+# Data Processing
+scikit-learn>=0.24.0
+scipy>=1.7.0
+
+# CORS and Additional Web Support
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+requests>=2.28.0
+
+# Development and Testing
+pytest>=6.2.0
+mypy>=0.910
+black>=21.5b2  # Code formatting
+flake8>=3.9.0  # Linting
+
+# Optional: Advanced NLP
+# spacy>=3.1.0  # Advanced NLP
+# nltk>=3.6.0  # Natural Language Toolkit
+# Core Python Dependencies
+numpy>=1.21.0
+pandas>=1.3.0
+typing-extensions>=4.0.0
+
+# Machine Learning and NLP
+torch>=1.13.0
+transformers>=4.30.0
+accelerate>=0.20.0  # For model loading
+sentencepiece  # For tokenization
+
+# Data Processing
+scikit-learn>=0.24.0
+scipy>=1.7.0
+
+# Development and Testing
+pytest>=6.2.0
+mypy>=0.910
+black>=21.5b2  # Code formatting
+flake8>=3.9.0  # Linting
+
+# Optional: Advanced NLP
+# spacy>=3.1.0  # Advanced NLP
+# nltk>=3.6.0  # Natural Language Toolkit
+
+# Optional: Data Visualization (if needed)
+# matplotlib>=3.4.0
+# seaborn>=0.11.0
+# Core Python Dependencies
+numpy>=1.21.0
+pandas>=1.3.0
+typing-extensions>=4.0.0
+
+# Data Processing
+scikit-learn>=0.24.0
+scipy>=1.7.0
+
+# Machine Learning (optional, for advanced optimization)
+# torch>=1.9.0  # Uncomment if using PyTorch
+# tensorflow>=2.6.0  # Uncomment if using TensorFlow
+
+# Optional: LLM Integration (placeholders)
+# transformers>=4.10.0  # Hugging Face Transformers
+# torch>=1.9.0  # For transformer models
+
+# Development and Testing
+pytest>=6.2.0
+mypy>=0.910
+black>=21.5b2  # Code formatting
+flake8>=3.9.0  # Linting
+
+# Potential Future Features
+# spacy>=3.1.0  # Advanced NLP
+# nltk>=3.6.0  # Natural Language Toolkit

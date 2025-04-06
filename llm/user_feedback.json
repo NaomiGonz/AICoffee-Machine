@@ -1,0 +1,486 @@
+{
+  "coffee_lover_001": [
+    {
+      "timestamp": "2025-04-05T20:53:58.275902",
+      "brewing_details": {
+        "coffee_type": "espresso",
+        "beans": [
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Light",
+            "notes": "balanced",
+            "amount_g": 6.7
+          },
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Medium",
+            "notes": "balanced",
+            "amount_g": 6.7
+          }
+        ],
+        "brewing_parameters": {
+          "coffee_type": "espresso",
+          "total_dose_g": 18.0,
+          "bean_details": [
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Light",
+              "notes": "balanced",
+              "amount_g": 6.7
+            },
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Medium",
+              "notes": "balanced",
+              "amount_g": 6.7
+            }
+          ],
+          "pressure_bar": 9.0,
+          "extraction_time_sec": [
+            25,
+            30
+          ],
+          "ideal_grind_size": "fine",
+          "recommended_temp_c": 95.0
+        },
+        "flavor_profile": "balanced & balanced",
+        "recommended_temperature": 95.0,
+        "additional_notes": []
+      },
+      "rating": 8.5,
+      "comments": "Enjoyed the recommendation!"
+    },
+    {
+      "timestamp": "2025-04-05T20:55:26.792024",
+      "brewing_details": {
+        "coffee_type": "espresso",
+        "beans": [
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Light",
+            "notes": "balanced",
+            "amount_g": 6.7
+          },
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Medium",
+            "notes": "balanced",
+            "amount_g": 6.7
+          }
+        ],
+        "brewing_parameters": {
+          "coffee_type": "espresso",
+          "total_dose_g": 18.0,
+          "bean_details": [
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Light",
+              "notes": "balanced",
+              "amount_g": 6.7
+            },
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Medium",
+              "notes": "balanced",
+              "amount_g": 6.7
+            }
+          ],
+          "pressure_bar": 9.0,
+          "extraction_time_sec": [
+            25,
+            30
+          ],
+          "ideal_grind_size": "fine",
+          "recommended_temp_c": 95.0
+        },
+        "flavor_profile": "balanced & balanced",
+        "recommended_temperature": 95.0,
+        "additional_notes": []
+      },
+      "rating": 8.5,
+      "comments": "Enjoyed the recommendation!"
+    },
+    {
+      "timestamp": "2025-04-05T20:56:51.680188",
+      "brewing_details": {
+        "coffee_type": "espresso",
+        "beans": [
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Light",
+            "notes": "balanced",
+            "amount_g": 6.7
+          },
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Medium",
+            "notes": "balanced",
+            "amount_g": 6.7
+          }
+        ],
+        "brewing_parameters": {
+          "coffee_type": "espresso",
+          "total_dose_g": 18.0,
+          "bean_details": [
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Light",
+              "notes": "balanced",
+              "amount_g": 6.7
+            },
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Medium",
+              "notes": "balanced",
+              "amount_g": 6.7
+            }
+          ],
+          "pressure_bar": 9.0,
+          "extraction_time_sec": [
+            25,
+            30
+          ],
+          "ideal_grind_size": "fine",
+          "recommended_temp_c": 95.0
+        },
+        "flavor_profile": "balanced & balanced",
+        "recommended_temperature": 95.0,
+        "additional_notes": []
+      },
+      "rating": 8.5,
+      "comments": "Enjoyed the recommendation!"
+    },
+    {
+      "timestamp": "2025-04-05T20:58:20.171618",
+      "brewing_details": {
+        "coffee_type": "espresso",
+        "beans": [
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Light",
+            "notes": "balanced",
+            "amount_g": 6.7
+          },
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Medium",
+            "notes": "balanced",
+            "amount_g": 6.7
+          }
+        ],
+        "brewing_parameters": {
+          "coffee_type": "espresso",
+          "total_dose_g": 18.0,
+          "bean_details": [
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Light",
+              "notes": "balanced",
+              "amount_g": 6.7
+            },
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Medium",
+              "notes": "balanced",
+              "amount_g": 6.7
+            }
+          ],
+          "pressure_bar": 9.0,
+          "extraction_time_sec": [
+            25,
+            30
+          ],
+          "ideal_grind_size": "fine",
+          "recommended_temp_c": 95.0
+        },
+        "flavor_profile": "balanced & balanced",
+        "recommended_temperature": 95.0,
+        "additional_notes": []
+      },
+      "rating": 8.5,
+      "comments": "Enjoyed the recommendation!"
+    },
+    {
+      "timestamp": "2025-04-05T20:58:20.193698",
+      "brewing_details": {
+        "coffee_type": "cappuccino",
+        "beans": [
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Light",
+            "notes": "balanced",
+            "amount_g": 8.0
+          },
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Medium",
+            "notes": "balanced",
+            "amount_g": 8.0
+          }
+        ],
+        "brewing_parameters": {
+          "coffee_type": "cappuccino",
+          "total_dose_g": "large",
+          "bean_details": [
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Light",
+              "notes": "balanced",
+              "amount_g": 8.0
+            },
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Medium",
+              "notes": "balanced",
+              "amount_g": 8.0
+            }
+          ]
+        },
+        "flavor_profile": "balanced & balanced",
+        "recommended_temperature": 95.0,
+        "additional_notes": []
+      },
+      "rating": 8.5,
+      "comments": "Enjoyed the recommendation!"
+    },
+    {
+      "timestamp": "2025-04-05T20:58:20.222252",
+      "brewing_details": {
+        "coffee_type": "espresso",
+        "beans": [
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Light",
+            "notes": "balanced",
+            "amount_g": 6.7
+          },
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Medium",
+            "notes": "balanced",
+            "amount_g": 6.7
+          }
+        ],
+        "brewing_parameters": {
+          "coffee_type": "espresso",
+          "total_dose_g": 18.0,
+          "bean_details": [
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Light",
+              "notes": "balanced",
+              "amount_g": 6.7
+            },
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Medium",
+              "notes": "balanced",
+              "amount_g": 6.7
+            }
+          ],
+          "pressure_bar": 9.0,
+          "extraction_time_sec": [
+            25,
+            30
+          ],
+          "ideal_grind_size": "fine",
+          "recommended_temp_c": 95.0
+        },
+        "flavor_profile": "balanced & balanced",
+        "recommended_temperature": 95.0,
+        "additional_notes": []
+      },
+      "rating": 8.5,
+      "comments": "Enjoyed the recommendation!"
+    },
+    {
+      "timestamp": "2025-04-05T21:11:29.805608",
+      "brewing_details": {
+        "coffee_type": "espresso",
+        "beans": [
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Light",
+            "notes": "fruity, bright, full-bodied",
+            "amount_g": 6.0
+          },
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Medium",
+            "notes": "fruity, bright",
+            "amount_g": 6.0
+          }
+        ],
+        "brewing_parameters": {
+          "coffee_type": "espresso",
+          "total_dose_g": "medium",
+          "bean_details": [
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Light",
+              "notes": "fruity, bright, full-bodied",
+              "amount_g": 6.0
+            },
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Medium",
+              "notes": "fruity, bright",
+              "amount_g": 6.0
+            }
+          ],
+          "pressure_bar": 9.0,
+          "extraction_time_sec": [
+            25,
+            30
+          ],
+          "ideal_grind_size": "fine",
+          "recommended_temp_c": 97.0
+        },
+        "flavor_profile": "fruity, bright, full-bodied & fruity, bright",
+        "recommended_temperature": 97.0,
+        "additional_notes": [
+          "The Ethiopia guji-hambela will highlight bright, fruity notes at a slightly higher brewing temperature."
+        ]
+      },
+      "rating": 8.5,
+      "comments": "Enjoyed the recommendation!"
+    },
+    {
+      "timestamp": "2025-04-05T21:11:29.857514",
+      "brewing_details": {
+        "coffee_type": "cappuccino",
+        "beans": [
+          {
+            "name": "Guatemala nan",
+            "origin": "Guatemala",
+            "roast": "Medium",
+            "notes": "chocolatey",
+            "amount_g": 8.0
+          },
+          {
+            "name": "Brazil nan",
+            "origin": "Brazil",
+            "roast": "Medium",
+            "notes": "chocolatey, bright",
+            "amount_g": 8.0
+          }
+        ],
+        "brewing_parameters": {
+          "coffee_type": "cappuccino",
+          "total_dose_g": "large",
+          "bean_details": [
+            {
+              "name": "Guatemala nan",
+              "origin": "Guatemala",
+              "roast": "Medium",
+              "notes": "chocolatey",
+              "amount_g": 8.0
+            },
+            {
+              "name": "Brazil nan",
+              "origin": "Brazil",
+              "roast": "Medium",
+              "notes": "chocolatey, bright",
+              "amount_g": 8.0
+            }
+          ]
+        },
+        "flavor_profile": "chocolatey & chocolatey, bright",
+        "recommended_temperature": 93.0,
+        "additional_notes": [
+          "The Guatemala nan will provide rich, chocolate notes with a smooth body.",
+          "The Brazil nan will highlight bright, fruity notes at a slightly higher brewing temperature.",
+          "The Brazil nan will provide rich, chocolate notes with a smooth body."
+        ]
+      },
+      "rating": 8.5,
+      "comments": "Enjoyed the recommendation!"
+    },
+    {
+      "timestamp": "2025-04-05T21:11:29.907640",
+      "brewing_details": {
+        "coffee_type": "espresso",
+        "beans": [
+          {
+            "name": "Brazil nan",
+            "origin": "Brazil",
+            "roast": "Medium",
+            "notes": "nutty, bright",
+            "amount_g": 6.0
+          },
+          {
+            "name": "Brazil south of minas",
+            "origin": "Brazil",
+            "roast": "Medium",
+            "notes": "nutty",
+            "amount_g": 6.0
+          }
+        ],
+        "brewing_parameters": {
+          "coffee_type": "espresso",
+          "total_dose_g": "medium",
+          "bean_details": [
+            {
+              "name": "Brazil nan",
+              "origin": "Brazil",
+              "roast": "Medium",
+              "notes": "nutty, bright",
+              "amount_g": 6.0
+            },
+            {
+              "name": "Brazil south of minas",
+              "origin": "Brazil",
+              "roast": "Medium",
+              "notes": "nutty",
+              "amount_g": 6.0
+            }
+          ],
+          "pressure_bar": 9.0,
+          "extraction_time_sec": [
+            25,
+            30
+          ],
+          "ideal_grind_size": "fine",
+          "recommended_temp_c": 93.0
+        },
+        "flavor_profile": "nutty, bright & nutty",
+        "recommended_temperature": 94.0,
+        "additional_notes": [
+          "The Brazil nan will highlight bright, fruity notes at a slightly higher brewing temperature.",
+          "The Brazil nan offers a pleasant nutty character that pairs well with milk-based drinks.",
+          "The Brazil south of minas offers a pleasant nutty character that pairs well with milk-based drinks."
+        ]
+      },
+      "rating": 8.5,
+      "comments": "Enjoyed the recommendation!"
+    }
+  ]
+}

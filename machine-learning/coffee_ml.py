@@ -4,6 +4,7 @@ import os
 import joblib
 import json
 import requests
+from scipy.optimize import minimize
 
 # Import components
 from data_processor import DataProcessor
@@ -36,18 +37,34 @@ class CoffeeMachineLearning:
         self.data_path = data_path or 'data/'
         self.model_path = model_path or 'models/'
         
-        # Core brewing parameters
-        self.feature_cols = ['extraction_pressure', 'temperature', 'ground_size', 
-                           'extraction_time', 'dose_size', 'bean_type']
+        # Core brewing parameters - modified to include cup_size and remove ground_size
+        self.feature_cols = ['extraction_pressure', 'temperature', 'extraction_time', 
+                            'dose_size', 'cup_size', 'bean_type']
         
         # Core flavor profiles
-        self.target_cols = ['acidity', 'strength', 'sweetness', 'fruitiness', 'maltiness']
+        self.target_cols = ['acidity', 'strength', 'sweetness', 'fruitiness', 'bitterness']
         
-        # Column types
-        self.numeric_cols = ['extraction_pressure', 'temperature', 'ground_size', 
-                            'extraction_time', 'dose_size']
+        # Column types - updated for new parameters
+        self.numeric_cols = ['extraction_pressure', 'temperature', 'extraction_time', 
+                            'dose_size', 'cup_size']
         self.categorical_cols = ['bean_type', 'processing_method', 'color', 
                                 'country_of_origin', 'region']
+        
+        # Cup size definitions
+        self.cup_sizes = {
+            'small': 89.0,      # ml
+            'medium': 236.588,  # ml
+            'large': 354.882    # ml
+        }
+        
+        # Available bean types
+        self.available_beans = ['arabica', 'robusta', 'ethiopian']
+        
+        # Default water to coffee ratio (ml water : g coffee)
+        self.default_ratio = 15
+        
+        # Fixed grind size value
+        self.grind_size = 400  # microns (fixed value)
         
         # Ensure directories exist
         os.makedirs(self.data_path, exist_ok=True)
@@ -81,11 +98,17 @@ class CoffeeMachineLearning:
             target_cols=self.target_cols,
             model_path=self.model_path,
             data_processor=self.data_processor,
-            flavor_predictor=self.flavor_predictor
+            flavor_predictor=self.flavor_predictor,
+            cup_sizes=self.cup_sizes,
+            default_ratio=self.default_ratio,
+            grind_size=self.grind_size
         )
         
         # Load configuration if exists
-        self.load_config()
+        try:
+            self.load_config()
+        except Exception as e:
+            print(f"Error loading config: {e}. Using default configuration.")
     
     def train_models(self, data, test_size=0.2, random_state=42):
         """
@@ -105,6 +128,10 @@ class CoffeeMachineLearning:
         metrics : dict
             Performance metrics for each model
         """
+        # Add fixed grind_size to data if not present
+        if 'ground_size' not in data.columns:
+            data['ground_size'] = self.grind_size
+        
         # Enrich with quality database if available
         if self.quality_db:
             data = self.quality_db.enrich_data(data)
@@ -138,6 +165,24 @@ class CoffeeMachineLearning:
         if isinstance(brewing_params, dict):
             brewing_params = pd.DataFrame([brewing_params])
         
+        # Add fixed grind_size
+        brewing_params['ground_size'] = self.grind_size
+        
+        # Handle bean blend if specified
+        if 'bean_blend' in brewing_params.columns:
+            # Process the blend and use the primary bean type
+            blend = brewing_params['bean_blend'].iloc[0]
+            if isinstance(blend, dict) and len(blend) > 0:
+                # Get primary bean (highest percentage)
+                primary_bean = max(blend.items(), key=lambda x: x[1])[0]
+                brewing_params['bean_type'] = primary_bean
+                
+                # Store blend info for reference
+                brewing_params['blend_info'] = str(blend)
+            else:
+                # Default to arabica if no blend info
+                brewing_params['bean_type'] = 'arabica'
+        
         # Enrich with quality database if available
         if self.quality_db:
             brewing_params = self.quality_db.enrich_data(brewing_params)
@@ -156,7 +201,7 @@ class CoffeeMachineLearning:
         
         return predictions
     
-    def suggest_brewing_parameters(self, desired_flavor_profile, bean_type=None, processing_method=None, country=None):
+    def suggest_brewing_parameters(self, desired_flavor_profile, cup_size='medium', bean_list=None, processing_method=None, country=None):
         """
         Suggest brewing parameters to achieve a desired flavor profile
         
@@ -164,8 +209,10 @@ class CoffeeMachineLearning:
         -----------
         desired_flavor_profile : dict
             Desired values for flavor attributes
-        bean_type : str, optional
-            Specific bean type to use
+        cup_size : str
+            Size of cup ('small', 'medium', 'large')
+        bean_list : list, optional
+            List of bean types to blend (system determines optimal percentages)
         processing_method : str, optional
             Specific processing method to use
         country : str, optional
@@ -174,28 +221,311 @@ class CoffeeMachineLearning:
         Returns:
         --------
         suggested_params : dict
-            Suggested brewing parameters
+            Suggested brewing parameters including the optimal bean blend
         """
-        # Fix categorical values if specified
-        fixed_params = {}
-        if bean_type:
-            fixed_params['bean_type'] = bean_type
-        if processing_method:
-            fixed_params['processing_method'] = processing_method
-        if country:
-            fixed_params['country_of_origin'] = country
+        try:
+            # Fix categorical values if specified
+            fixed_params = {}
+            
+            # Set cup size
+            if cup_size in self.cup_sizes:
+                fixed_params['cup_size'] = self.cup_sizes[cup_size]
+            else:
+                fixed_params['cup_size'] = self.cup_sizes['medium']
+            
+            # Calculate dose size based on cup size and default ratio
+            suggested_dose = fixed_params['cup_size'] / self.default_ratio
+            
+            if processing_method:
+                fixed_params['processing_method'] = processing_method
+                
+            if country:
+                fixed_params['country_of_origin'] = country
+            
+            # Use bitterness as temperature guide (if bitterness is specified)
+            if 'bitterness' in desired_flavor_profile:
+                # Adjust temperature based on bitterness (higher bitterness = higher temperature)
+                bitterness = desired_flavor_profile['bitterness']
+                # Linear mapping from bitterness 1-10 to temperature range 87-95°C
+                suggested_temp = 87 + (bitterness - 1) * (95 - 87) / 9
+                fixed_params['temperature'] = suggested_temp
+            # For backward compatibility, also check for maltiness if bitterness isn't present
+            elif 'maltiness' in desired_flavor_profile:
+                # Adjust temperature based on maltiness (higher maltiness = higher temperature)
+                maltiness = desired_flavor_profile['maltiness']
+                # Linear mapping from maltiness 1-10 to temperature range 87-95°C
+                suggested_temp = 87 + (maltiness - 1) * (95 - 87) / 9
+                fixed_params['temperature'] = suggested_temp
+            
+            # Determine the optimal bean blend if beans are specified
+            bean_blend = None
+            if bean_list and len(bean_list) > 0:
+                # Create an equal blend as fallback
+                bean_blend = {}
+                equal_percent = 100 // len(bean_list)
+                remainder = 100 % len(bean_list)
+                
+                for i, bean in enumerate(bean_list):
+                    # Add remainder to first bean
+                    if i == 0:
+                        bean_blend[bean] = equal_percent + remainder
+                    else:
+                        bean_blend[bean] = equal_percent
+                        
+                # Set primary bean type
+                primary_bean = max(bean_blend.items(), key=lambda x: x[1])[0]
+                fixed_params['bean_type'] = primary_bean
+                fixed_params['bean_blend'] = bean_blend
+            else:
+                # Create an equal blend of the first 3 available beans
+                bean_list = self.available_beans[:3]  # Limit to first 3 beans
+                bean_blend = {}
+                equal_percent = 100 // len(bean_list)
+                remainder = 100 % len(bean_list)
+                
+                for i, bean in enumerate(bean_list):
+                    # Add remainder to first bean
+                    if i == 0:
+                        bean_blend[bean] = equal_percent + remainder
+                    else:
+                        bean_blend[bean] = equal_percent
+                    
+                # Set primary bean type
+                primary_bean = max(bean_blend.items(), key=lambda x: x[1])[0]
+                fixed_params['bean_type'] = primary_bean
+                fixed_params['bean_blend'] = bean_blend
+            
+            # Get starting recommendations from quality database
+            starting_params = None
+            if self.quality_db:
+                try:
+                    starting_params = self.quality_db.suggest_params_for_flavor(desired_flavor_profile, fixed_params)
+                except:
+                    pass
+            
+            # Optimize parameters
+            params = self.parameter_optimizer.optimize(
+                desired_flavor_profile, 
+                fixed_params=fixed_params, 
+                starting_params=starting_params
+            )
+            
+            # Ensure dose_size is appropriate for cup_size
+            params['dose_size'] = min(max(suggested_dose * 0.8, 15), min(suggested_dose * 1.2, 25))
+            
+            # Add bean blend to final parameters if not already there
+            if bean_blend and 'bean_blend' not in params:
+                params['bean_blend'] = bean_blend
+            
+            return params
+            
+        except Exception as e:
+            print(f"Error suggesting brewing parameters: {e}. Using fallback parameters.")
+            
+            # Create fallback parameters
+            params = {
+                'extraction_pressure': 7.0,
+                'temperature': 93.0,
+                'extraction_time': 30.0,
+                'cup_size': self.cup_sizes.get(cup_size, self.cup_sizes['medium']),
+                'ground_size': self.grind_size,
+                'bean_type': 'arabica'
+            }
+            
+            # Adjust dose size based on cup size
+            params['dose_size'] = params['cup_size'] / self.default_ratio
+            
+            # Adjust temperature based on bitterness or maltiness
+            if 'bitterness' in desired_flavor_profile:
+                bitterness = desired_flavor_profile['bitterness']
+                params['temperature'] = 87 + (bitterness - 1) * (95 - 87) / 9
+            elif 'maltiness' in desired_flavor_profile:
+                maltiness = desired_flavor_profile['maltiness']
+                params['temperature'] = 87 + (maltiness - 1) * (95 - 87) / 9
+                
+            # Add bean blend if provided
+            if bean_list and len(bean_list) > 0:
+                bean_blend = {}
+                equal_percent = 100 // len(bean_list)
+                remainder = 100 % len(bean_list)
+                
+                for i, bean in enumerate(bean_list):
+                    if i == 0:
+                        bean_blend[bean] = equal_percent + remainder
+                    else:
+                        bean_blend[bean] = equal_percent
+                
+                params['bean_blend'] = bean_blend
+            elif hasattr(self, 'available_beans') and self.available_beans:
+                bean_list = self.available_beans[:3]  # Limit to first 3 beans
+                bean_blend = {}
+                equal_percent = 100 // len(bean_list)
+                remainder = 100 % len(bean_list)
+                
+                for i, bean in enumerate(bean_list):
+                    if i == 0:
+                        bean_blend[bean] = equal_percent + remainder
+                    else:
+                        bean_blend[bean] = equal_percent
+                
+                params['bean_blend'] = bean_blend
+            
+            return params
+    
+    def _optimize_bean_blend(self, bean_list, desired_flavor_profile, fixed_params):
+        """
+        Optimize blend percentages for a list of beans to achieve desired flavor profile
         
-        # Get starting recommendations from quality database
-        starting_params = None
-        if self.quality_db:
-            starting_params = self.quality_db.suggest_params_for_flavor(desired_flavor_profile, fixed_params)
+        Parameters:
+        -----------
+        bean_list : list
+            List of bean types to blend
+        desired_flavor_profile : dict
+            Desired values for flavor attributes
+        fixed_params : dict
+            Fixed brewing parameters
+            
+        Returns:
+        --------
+        blend : dict
+            Optimized bean blend with percentages
+        """
+        if not bean_list or len(bean_list) == 0:
+            return None
         
-        # Optimize parameters
-        return self.parameter_optimizer.optimize(
-            desired_flavor_profile, 
-            fixed_params=fixed_params, 
-            starting_params=starting_params
-        )
+        # If only one bean type, return 100% of that bean
+        if len(bean_list) == 1:
+            return {bean_list[0]: 100}
+        
+        # Copy fixed params to avoid modifying the original
+        base_params = fixed_params.copy()
+        
+        # Make sure we have all basic brewing parameters to avoid alignment errors
+        required_params = ['extraction_pressure', 'temperature', 'extraction_time', 
+                        'dose_size', 'cup_size', 'ground_size']
+        
+        # Fill in missing parameters with sensible defaults
+        defaults = {
+            'extraction_pressure': 7.0,  # bars
+            'temperature': 93.0,         # Celsius
+            'extraction_time': 30.0,     # seconds
+            'dose_size': 20.0,           # grams
+            'cup_size': 236.588,         # ml (medium)
+            'ground_size': self.grind_size  # microns
+        }
+        
+        for param in required_params:
+            if param not in base_params:
+                base_params[param] = defaults[param]
+        
+        # Initial blend with equal percentages
+        n_beans = len(bean_list)
+        initial_percentages = [100/n_beans] * (n_beans - 1)
+        
+        # Define constraints to ensure percentages sum to 100
+        def percentage_constraint(x):
+            return 100 - sum(x) - (100 - sum(x))
+        
+        constraints = [{'type': 'eq', 'fun': percentage_constraint}]
+        
+        # Define bounds (0-100 for each percentage)
+        bounds = [(0, 100)] * (n_beans - 1)
+        
+        # Define the objective function
+        def objective(percentages):
+            try:
+                # Construct the full list of percentages (last one is calculated)
+                full_percentages = list(percentages) + [100 - sum(percentages)]
+                
+                # Create blend dictionary
+                blend = {bean: perc for bean, perc in zip(bean_list, full_percentages) if perc > 0}
+                
+                # If any percentages are negative (can happen due to numerical issues), return high distance
+                if any(p < 0 for p in full_percentages) or not blend:
+                    return float('inf')
+                
+                # Get primary bean (highest percentage)
+                primary_bean = max(blend.items(), key=lambda x: x[1])[0]
+                
+                # Set up parameters for prediction
+                test_params = base_params.copy()
+                test_params['bean_type'] = primary_bean
+                test_params['bean_blend'] = blend
+                
+                # Predict flavor profile with this blend
+                try:
+                    # Temporarily convert to DataFrame for prediction
+                    test_df = pd.DataFrame([test_params])
+                    predictions = self.predict_flavor_profile(test_df)
+                    
+                    # Calculate distance to desired profile
+                    distance = 0
+                    for flavor, desired_val in desired_flavor_profile.items():
+                        if flavor in predictions:
+                            distance += (predictions[flavor] - desired_val) ** 2
+                    
+                    return np.sqrt(distance)
+                except Exception as e:
+                    print(f"Error in prediction during blend optimization: {e}")
+                    return float('inf')
+            except Exception as e:
+                print(f"Error in objective function: {e}")
+                return float('inf')
+        
+        # Run optimization with some error handling
+        try:
+            result = minimize(
+                objective,
+                initial_percentages,
+                method='SLSQP',
+                bounds=bounds,
+                constraints=constraints,
+                options={'maxiter': 50, 'disp': False, 'ftol': 1e-6}
+            )
+            
+            # Get optimized percentages
+            optimized_percentages = list(result.x) + [100 - sum(result.x)]
+            
+            # Make sure we don't have NaN or invalid values
+            if any(np.isnan(p) for p in optimized_percentages) or any(p < 0 for p in optimized_percentages):
+                print("Blend optimization produced invalid values, using equal blend instead.")
+                equal_percentages = [100.0 / len(bean_list)] * len(bean_list)
+                blend = {bean: perc for bean, perc in zip(bean_list, equal_percentages)}
+                return blend
+            
+            # Round percentages to integers and adjust to ensure they sum to 100
+            rounded_percentages = [round(p) for p in optimized_percentages]
+            
+            # Adjust to make sure they sum to 100
+            while sum(rounded_percentages) != 100:
+                if sum(rounded_percentages) < 100:
+                    # Add to the largest percentage
+                    idx = rounded_percentages.index(max(rounded_percentages))
+                    rounded_percentages[idx] += 1
+                else:
+                    # Subtract from the smallest non-zero percentage
+                    non_zero = [i for i, p in enumerate(rounded_percentages) if p > 0]
+                    if non_zero:
+                        idx = min(non_zero, key=lambda i: rounded_percentages[i])
+                        rounded_percentages[idx] -= 1
+            
+            # Create blend dictionary, excluding 0% components
+            blend = {bean: perc for bean, perc in zip(bean_list, rounded_percentages) if perc > 0}
+            
+            return blend
+        except Exception as e:
+            print(f"Blend optimization failed: {e}")
+            # Return an equal blend as fallback
+            equal_percentages = [100.0 / len(bean_list)] * len(bean_list)
+            rounded_percentages = [round(p) for p in equal_percentages]
+            
+            # Adjust to ensure they sum to 100
+            delta = 100 - sum(rounded_percentages)
+            if delta != 0:
+                rounded_percentages[0] += delta
+            
+            blend = {bean: perc for bean, perc in zip(bean_list, rounded_percentages)}
+            return blend
     
     def collect_brewing_data(self, brewing_params, flavor_ratings):
         """
@@ -218,6 +548,21 @@ class CoffeeMachineLearning:
         
         # Add timestamp
         data['timestamp'] = pd.Timestamp.now()
+        
+        # Add fixed grind_size
+        data['ground_size'] = self.grind_size
+        
+        # Handle bean blend if present
+        if 'bean_blend' in data and isinstance(data['bean_blend'], dict):
+            # Store blend info as a string for CSV storage
+            data['blend_info'] = str(data['bean_blend'])
+            
+            # Use primary bean as bean_type
+            if len(data['bean_blend']) > 0:
+                data['bean_type'] = max(data['bean_blend'].items(), key=lambda x: x[1])[0]
+            
+            # Remove the dict to avoid serialization issues
+            del data['bean_blend']
         
         # Create DataFrame
         df = pd.DataFrame([data])
@@ -312,6 +657,10 @@ class CoffeeMachineLearning:
             'categorical_cols': self.categorical_cols,
             'data_path': self.data_path,
             'model_path': self.model_path,
+            'cup_sizes': self.cup_sizes,
+            'available_beans': self.available_beans,
+            'default_ratio': self.default_ratio,
+            'grind_size': self.grind_size,
             'has_quality_db': self.quality_db is not None
         }
         
@@ -348,6 +697,10 @@ class CoffeeMachineLearning:
         self.categorical_cols = config.get('categorical_cols', self.categorical_cols)
         self.data_path = config.get('data_path', self.data_path)
         self.model_path = config.get('model_path', self.model_path)
+        self.cup_sizes = config.get('cup_sizes', self.cup_sizes)
+        self.available_beans = config.get('available_beans', self.available_beans)
+        self.default_ratio = config.get('default_ratio', self.default_ratio)
+        self.grind_size = config.get('grind_size', self.grind_size)
         
         # Update components with new configuration
         self.data_processor.update_config(
@@ -369,7 +722,10 @@ class CoffeeMachineLearning:
         
         self.parameter_optimizer.update_config(
             feature_cols=self.feature_cols,
-            target_cols=self.target_cols
+            target_cols=self.target_cols,
+            cup_sizes=self.cup_sizes,
+            default_ratio=self.default_ratio,
+            grind_size=self.grind_size
         )
         
         return True

@@ -1,0 +1,6 @@
+Category,Delay (sec),Delay StdDev,RPM (%),RPM StdDev,Volume (ml),Volume StdDev,Grind Size,Grind StdDev,Grind Description,Sample Count
+Bold Espresso,0.0,0.0,74.0,0.0,180.0,0.0,1.0,0.0,Fine,16
+Chocolate Nutty,3.6,0.78,23.9,28.74,180.0,0.0,5.0,0.0,Coarse,29
+Fruity Light,6.0,0.0,8.0,0.0,180.0,0.0,5.0,0.0,Coarse,24
+Iced Sweet,4.0,0.0,74.0,0.0,180.0,0.0,5.0,0.0,Coarse,19
+Smooth Creamy,4.0,0.0,74.0,0.0,180.0,0.0,5.0,0.0,Coarse,17

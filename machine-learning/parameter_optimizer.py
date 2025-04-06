@@ -9,7 +9,8 @@ class ParameterOptimizer:
     Handles the inverse problem of finding brewing parameters for a target flavor
     """
     
-    def __init__(self, feature_cols, target_cols, model_path, data_processor, flavor_predictor):
+    def __init__(self, feature_cols, target_cols, model_path, data_processor, flavor_predictor, 
+                 cup_sizes=None, default_ratio=15, grind_size=400):
         """
         Initialize the parameter optimizer
         
@@ -25,6 +26,12 @@ class ParameterOptimizer:
             Component for data preprocessing
         flavor_predictor : FlavorPredictor
             Component for flavor prediction
+        cup_sizes : dict, optional
+            Dictionary of cup sizes (small, medium, large) and their volumes in ml
+        default_ratio : float, optional
+            Default water to coffee ratio (ml water : g coffee)
+        grind_size : int, optional
+            Fixed grind size value in microns
         """
         self.feature_cols = feature_cols
         self.target_cols = target_cols
@@ -32,16 +39,26 @@ class ParameterOptimizer:
         self.data_processor = data_processor
         self.flavor_predictor = flavor_predictor
         
-        # Default parameter ranges
+        # Cup sizes and ratios
+        self.cup_sizes = cup_sizes or {
+            'small': 89.0,
+            'medium': 236.588,
+            'large': 354.882
+        }
+        self.default_ratio = default_ratio
+        self.grind_size = grind_size
+        
+        # Default parameter ranges (modified to remove ground_size and add cup_size)
         self.param_ranges = {
             'extraction_pressure': (1, 10),     # bars
             'temperature': (85, 96),            # Celsius
-            'ground_size': (100, 1000),         # microns
             'extraction_time': (20, 40),        # seconds
-            'dose_size': (15, 25)               # grams
+            'dose_size': (15, 25),              # grams
+            'cup_size': (min(self.cup_sizes.values()), max(self.cup_sizes.values()))  # ml
         }
     
-    def update_config(self, feature_cols=None, target_cols=None, param_ranges=None):
+    def update_config(self, feature_cols=None, target_cols=None, param_ranges=None, 
+                      cup_sizes=None, default_ratio=None, grind_size=None):
         """
         Update configuration parameters
         
@@ -53,6 +70,12 @@ class ParameterOptimizer:
             Columns to use as targets
         param_ranges : dict, optional
             Ranges for brewing parameters (min, max)
+        cup_sizes : dict, optional
+            Dictionary of cup sizes and their volumes
+        default_ratio : float, optional
+            Water to coffee ratio
+        grind_size : int, optional
+            Fixed grind size value
         """
         if feature_cols is not None:
             self.feature_cols = feature_cols
@@ -62,6 +85,15 @@ class ParameterOptimizer:
             
         if param_ranges is not None:
             self.param_ranges.update(param_ranges)
+            
+        if cup_sizes is not None:
+            self.cup_sizes = cup_sizes
+            
+        if default_ratio is not None:
+            self.default_ratio = default_ratio
+            
+        if grind_size is not None:
+            self.grind_size = grind_size
     
     def optimize(self, desired_flavor_profile, fixed_params=None, starting_params=None):
         """
@@ -81,52 +113,87 @@ class ParameterOptimizer:
         optimal_params : dict
             Optimized brewing parameters
         """
-        fixed_params = fixed_params or {}
-        
-        # Use grid search for initial optimization
         try:
+            fixed_params = fixed_params or {}
+            
+            # Handle multi-bean blend if specified in fixed_params
+            bean_blend = None
+            if 'bean_blend' in fixed_params:
+                bean_blend = fixed_params['bean_blend']
+                # Keep primary bean type for optimization
+                if 'bean_type' not in fixed_params and bean_blend:
+                    fixed_params['bean_type'] = max(bean_blend.items(), key=lambda x: x[1])[0]
+            
+            # Use grid search for initial optimization
             best_params, best_distance = self._grid_search(
                 desired_flavor_profile, 
                 fixed_params,
                 starting_params
             )
+            
+            # Refine with local optimization if possible
+            try:
+                refined_params = self._local_optimization(
+                    best_params, 
+                    desired_flavor_profile,
+                    fixed_params
+                )
+                
+                # Check if refined solution is better
+                refined_distance = self._calculate_distance(
+                    refined_params, 
+                    desired_flavor_profile
+                )
+                
+                if refined_distance < best_distance:
+                    best_params = refined_params
+                    
+            except Exception as e:
+                print(f"Local optimization failed: {e}. Using grid search result.")
+            
+            # Ensure results are within bounds and rounded appropriately
+            best_params = self._format_parameters(best_params)
+            
+            # Add fixed grind size
+            best_params['ground_size'] = self.grind_size
+            
+            # Add back bean blend information if it was provided
+            if bean_blend:
+                best_params['bean_blend'] = bean_blend
+            elif 'bean_blend' not in best_params:
+                # Check if a blend was specified elsewhere
+                if 'bean_blend' in fixed_params:
+                    best_params['bean_blend'] = fixed_params['bean_blend']
+            
+            return best_params
+            
         except Exception as e:
-            print(f"Grid search failed: {e}. Using fallback parameters.")
-            # Provide sensible fallback parameters
-            best_params = {
+            print(f"Overall optimization failed: {e}. Using default parameters.")
+            
+            # Create reasonable default parameters
+            default_params = {
                 'extraction_pressure': 7.0,
                 'temperature': 93.0,
-                'ground_size': 400.0,
                 'extraction_time': 30.0,
                 'dose_size': 20.0,
-                'bean_type': fixed_params.get('bean_type', 'arabica')
+                'cup_size': fixed_params.get('cup_size', 236.588),  # medium cup
+                'bean_type': fixed_params.get('bean_type', 'arabica'),
+                'ground_size': self.grind_size
             }
-            best_distance = float('inf')
-        
-        # Refine with local optimization if possible
-        try:
-            refined_params = self._local_optimization(
-                best_params, 
-                desired_flavor_profile,
-                fixed_params
-            )
             
-            # Check if refined solution is better
-            refined_distance = self._calculate_distance(
-                refined_params, 
-                desired_flavor_profile
-            )
-            
-            if refined_distance < best_distance:
-                best_params = refined_params
+            # Use temperature from bitterness if specified
+            if 'bitterness' in desired_flavor_profile:
+                bitterness = desired_flavor_profile['bitterness']
+                default_params['temperature'] = 87 + (bitterness - 1) * (95 - 87) / 9
+            elif 'maltiness' in desired_flavor_profile:
+                maltiness = desired_flavor_profile['maltiness']
+                default_params['temperature'] = 87 + (maltiness - 1) * (95 - 87) / 9
                 
-        except Exception as e:
-            print(f"Local optimization failed: {e}. Using grid search result.")
-        
-        # Ensure results are within bounds and rounded appropriately
-        best_params = self._format_parameters(best_params)
-        
-        return best_params
+            # Add bean blend if provided
+            if 'bean_blend' in fixed_params:
+                default_params['bean_blend'] = fixed_params['bean_blend']
+            
+            return default_params
     
     def _grid_search(self, desired_flavor_profile, fixed_params, starting_params=None):
         """
@@ -148,99 +215,153 @@ class ParameterOptimizer:
         best_distance : float
             Distance to desired profile
         """
-        # Create a grid of parameter combinations
-        grid_size = 1000
-        params_grid = []
-        
-        # Adjust ranges if starting parameters are provided
-        param_ranges = self.param_ranges.copy()
-        
-        if starting_params:
-            for param, value in starting_params.items():
-                if param in param_ranges:
-                    # Narrow range around starting value
-                    min_val, max_val = param_ranges[param]
-                    range_width = max_val - min_val
-                    new_min = max(min_val, value - range_width * 0.25)
-                    new_max = min(max_val, value + range_width * 0.25)
-                    param_ranges[param] = (new_min, new_max)
-        
-        # Generate grid points
-        for _ in range(grid_size):
-            params = {}
-            for param, (min_val, max_val) in param_ranges.items():
-                if param not in fixed_params:
-                    params[param] = np.random.uniform(min_val, max_val)
-                else:
-                    params[param] = fixed_params[param]
+        try:
+            # Create a grid of parameter combinations
+            grid_size = 1000
+            params_grid = []
             
-            # Fill in fixed params
-            params.update(fixed_params)
-            params_grid.append(params)
-        
-        # Convert to DataFrame for batch prediction
-        grid_df = pd.DataFrame(params_grid)
-        
-        # Default bean_type if not specified
-        if 'bean_type' not in grid_df.columns and 'bean_type' not in fixed_params:
-            grid_df['bean_type'] = 'arabica'
-        
-        # Add flavor_profile_cluster if needed (since our model was trained with it)
-        if 'flavor_profile_cluster' not in grid_df.columns:
-            grid_df['flavor_profile_cluster'] = 0  # Default cluster value
-        
-        # Predict flavor profiles for all parameter combinations
-        best_params = None
-        best_distance = float('inf')
-        
-        found_valid_params = False
-        
-        for i in range(0, len(grid_df), 100):  # Process in batches
-            batch = grid_df.iloc[i:i+100].copy()
+            # Adjust ranges if starting parameters are provided
+            param_ranges = self.param_ranges.copy()
             
-            try:
-                # Preprocess batch
-                X_batch = self.data_processor.preprocess_data(batch, training=False)
+            if starting_params:
+                for param, value in starting_params.items():
+                    if param in param_ranges:
+                        # Narrow range around starting value
+                        min_val, max_val = param_ranges[param]
+                        range_width = max_val - min_val
+                        new_min = max(min_val, value - range_width * 0.25)
+                        new_max = min(max_val, value + range_width * 0.25)
+                        param_ranges[param] = (new_min, new_max)
+            
+            # Generate grid points, ensuring cup_size and dose_size relationship
+            for _ in range(grid_size):
+                params = {}
                 
-                # Calculate distance to desired flavor profile for each combination
-                for j in range(len(batch)):
-                    try:
-                        X_single = X_batch.iloc[[j]]
-                        pred_profile = self._predict_with_feature_alignment(X_single)
-                        
-                        # Calculate Euclidean distance to desired profile
-                        distance = 0
-                        for target, desired_val in desired_flavor_profile.items():
-                            if target in pred_profile:
-                                distance += (pred_profile[target] - desired_val) ** 2
-                        
-                        distance = np.sqrt(distance)
-                        
-                        if distance < best_distance:
-                            best_distance = distance
-                            best_params = batch.iloc[j].to_dict()
-                            found_valid_params = True
-                    except Exception as e:
-                        # Skip this individual prediction if there's an error
-                        continue
+                # First select cup size (if not fixed)
+                if 'cup_size' not in fixed_params:
+                    cup_sizes = list(self.cup_sizes.values())
+                    params['cup_size'] = np.random.choice(cup_sizes)
+                else:
+                    params['cup_size'] = fixed_params['cup_size']
+                
+                # Calculate appropriate dose size based on cup size and ratio
+                suggested_dose = params['cup_size'] / self.default_ratio
+                dose_min = max(self.param_ranges['dose_size'][0], suggested_dose * 0.8)
+                dose_max = min(self.param_ranges['dose_size'][1], suggested_dose * 1.2)
+                
+                # Generate other parameters
+                for param, (min_val, max_val) in param_ranges.items():
+                    if param not in fixed_params and param != 'cup_size':
+                        if param == 'dose_size':
+                            params[param] = np.random.uniform(dose_min, dose_max)
+                        elif param == 'temperature':
+                            # Check if bitterness or maltiness is specified to link to temperature
+                            if 'temperature' in fixed_params:
+                                # If temperature is fixed, use that value
+                                params[param] = fixed_params['temperature']
+                            elif 'bitterness' in desired_flavor_profile:
+                                # Link temperature to desired bitterness
+                                bitterness = desired_flavor_profile['bitterness']
+                                # Map bitterness 1-10 to temperature 87-95°C with some randomness
+                                base_temp = 87 + (bitterness - 1) * (95 - 87) / 9
+                                # Add small random variation (±1°C)
+                                params[param] = np.random.uniform(base_temp - 1, base_temp + 1)
+                            elif 'maltiness' in desired_flavor_profile:
+                                # For backward compatibility, check for maltiness too
+                                maltiness = desired_flavor_profile['maltiness']
+                                base_temp = 87 + (maltiness - 1) * (95 - 87) / 9
+                                params[param] = np.random.uniform(base_temp - 1, base_temp + 1)
+                            else:
+                                # If neither is specified, use random temperature
+                                params[param] = np.random.uniform(min_val, max_val)
+                        else:
+                            params[param] = np.random.uniform(min_val, max_val)
+                    else:
+                        params[param] = fixed_params[param]
+                
+                # Fill in fixed params
+                params.update(fixed_params)
+                params_grid.append(params)
             
-            except Exception as e:
-                print(f"Error processing batch {i//100}: {e}")
-                continue
-        
-        if not found_valid_params:
-            # Provide sensible defaults if no valid parameters were found
+            # Convert to DataFrame for batch prediction
+            grid_df = pd.DataFrame(params_grid)
+            
+            # Default bean_type if not specified
+            if 'bean_type' not in grid_df.columns and 'bean_type' not in fixed_params:
+                grid_df['bean_type'] = 'arabica'
+            
+            # Add fixed grind_size
+            grid_df['ground_size'] = self.grind_size
+            
+            # Add flavor_profile_cluster if needed (since our model was trained with it)
+            if 'flavor_profile_cluster' not in grid_df.columns:
+                grid_df['flavor_profile_cluster'] = 0  # Default cluster value
+            
+            # Predict flavor profiles for all parameter combinations
+            best_params = None
+            best_distance = float('inf')
+            
+            found_valid_params = False
+            
+            for i in range(0, len(grid_df), 100):  # Process in batches
+                batch = grid_df.iloc[i:i+100].copy()
+                
+                try:
+                    # Preprocess batch
+                    X_batch = self.data_processor.preprocess_data(batch, training=False)
+                    
+                    # Calculate distance to desired flavor profile for each combination
+                    for j in range(len(batch)):
+                        try:
+                            X_single = X_batch.iloc[[j]]
+                            pred_profile = self._predict_with_feature_alignment(X_single)
+                            
+                            # Calculate Euclidean distance to desired profile
+                            distance = 0
+                            for target, desired_val in desired_flavor_profile.items():
+                                if target in pred_profile:
+                                    distance += (pred_profile[target] - desired_val) ** 2
+                            
+                            distance = np.sqrt(distance)
+                            
+                            if distance < best_distance:
+                                best_distance = distance
+                                best_params = batch.iloc[j].to_dict()
+                                found_valid_params = True
+                        except Exception as e:
+                            # Skip this individual prediction if there's an error
+                            continue
+                
+                except Exception as e:
+                    # Skip this batch if preprocessing fails
+                    continue
+            
+            if not found_valid_params:
+                # Provide sensible defaults if no valid parameters were found
+                default_params = {
+                    'extraction_pressure': 7.0,
+                    'temperature': 93.0,
+                    'extraction_time': 30.0,
+                    'dose_size': 20.0,
+                    'cup_size': 236.588,  # medium cup
+                    'bean_type': fixed_params.get('bean_type', 'arabica')
+                }
+                return default_params, float('inf')
+            
+            return best_params, best_distance
+            
+        except Exception as e:
+            print(f"Grid search failed: {e}")
+            # Provide sensible defaults if grid search fails
             default_params = {
                 'extraction_pressure': 7.0,
                 'temperature': 93.0,
-                'ground_size': 400.0,
                 'extraction_time': 30.0,
                 'dose_size': 20.0,
+                'cup_size': 236.588,  # medium cup
                 'bean_type': fixed_params.get('bean_type', 'arabica')
             }
             return default_params, float('inf')
-        
-        return best_params, best_distance
     
     def _predict_with_feature_alignment(self, X):
         """
@@ -393,6 +514,10 @@ class ParameterOptimizer:
         if 'flavor_profile_cluster' not in params_df.columns:
             params_df['flavor_profile_cluster'] = 0
         
+        # Add fixed grind_size
+        if 'ground_size' not in params_df.columns:
+            params_df['ground_size'] = self.grind_size
+        
         # Preprocess data
         try:
             X = self.data_processor.preprocess_data(params_df, training=False)
@@ -442,8 +567,10 @@ class ParameterOptimizer:
                     value = round(value, 2)  # Two decimals for pressure and dose
                 elif param == 'extraction_time':
                     value = round(value, 2)  # Two decimals for time
-                elif param == 'ground_size':
-                    value = round(value)  # Integer for ground size (microns)
+                elif param == 'cup_size':
+                    # Find closest standard cup size
+                    cup_sizes = list(self.cup_sizes.values())
+                    value = min(cup_sizes, key=lambda x: abs(x - value))
                 
                 formatted[param] = value
             else:

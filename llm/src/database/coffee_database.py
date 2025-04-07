@@ -77,6 +77,9 @@ class CoffeeDatabase:
             print(f"Error loading coffee databases: {e}")
             self.arabica_df = pd.DataFrame()
             self.robusta_df = pd.DataFrame()
+        
+        # Initialize bean inventory
+        self._bean_inventory = self.get_bean_inventory()
     
     def _enhance_flavor_data(self):
         """
@@ -417,6 +420,147 @@ class CoffeeDatabase:
             Dict: Mapping of flavor profiles to related terms
         """
         return self.flavor_profile_mapping
+    
+    def get_bean_inventory(self) -> List[Dict[str, Any]]:
+        """
+        Get the user's bean inventory (maximum 3 beans).
+        
+        Returns:
+            List[Dict]: User's bean inventory
+        """
+        # Return the stored bean inventory
+        if hasattr(self, '_bean_inventory') and self._bean_inventory:
+            return self._bean_inventory
+        
+        # If no inventory exists, create a default one
+        # In a real implementation, this would load from a persistent store
+        # For this demonstration, we'll return a subset of the Arabica dataset
+        if not self.arabica_df.empty:
+            top_beans = self.get_top_coffees_by_region('Arabica', 3)
+            
+            # Convert to dictionary format
+            beans = []
+            for _, row in top_beans.iterrows():
+                try:
+                    flavor_tags = row.get('flavor_tags', [])
+                    if isinstance(flavor_tags, list) and flavor_tags:
+                        notes = ", ".join(flavor_tags[:3])
+                    else:
+                        notes = str(row.get('Flavor', 'balanced'))
+                        
+                    beans.append({
+                        "name": f"{row['Country.of.Origin']} {row.get('Region', '')}",
+                        "origin": row['Country.of.Origin'],
+                        "roast": self._infer_roast_from_cup_points(row.get('Total.Cup.Points', 85)),
+                        "notes": notes
+                    })
+                except (KeyError, TypeError) as e:
+                    # Skip beans with missing data
+                    print(f"Error creating bean: {e}")
+                    continue
+                    
+            self._bean_inventory = beans
+            return beans
+        
+        # Return default beans if no data is available
+        default_beans = [
+            {
+                "name": "Ethiopian Yirgacheffe",
+                "origin": "Ethiopia",
+                "roast": "Light",
+                "notes": "fruity, floral, citrus"
+            },
+            {
+                "name": "Colombian Supremo",
+                "origin": "Colombia",
+                "roast": "Medium", 
+                "notes": "chocolatey, nutty, balanced"
+            },
+            {
+                "name": "Sumatra Mandheling",
+                "origin": "Indonesia",
+                "roast": "Dark",
+                "notes": "earthy, spicy, bold"
+            }
+        ]
+        
+        self._bean_inventory = default_beans
+        return default_beans
+
+    def _infer_roast_from_cup_points(self, cup_points: float) -> str:
+        """
+        Infer the roast level based on cup points.
+        
+        Args:
+            cup_points (float): Total cup points score
+        
+        Returns:
+            str: Inferred roast level (Light, Medium, or Dark)
+        """
+        # Convert numpy types to Python native types
+        if hasattr(cup_points, 'item'):
+            cup_points = cup_points.item()
+        
+        try:
+            cup_points = float(cup_points)
+            if cup_points >= 90:
+                return "Light"
+            elif cup_points >= 85:
+                return "Medium"
+            else:
+                return "Dark"
+        except (TypeError, ValueError):
+            return "Medium"  # Default to medium roast if conversion fails
+
+    def set_bean_inventory(self, beans: List[Dict[str, Any]]) -> None:
+        """
+        Set the user's bean inventory (maximum 3 beans).
+        
+        Args:
+            beans (List[Dict]): Beans to set in inventory
+        """
+        # Limit to maximum 3 beans
+        if beans and len(beans) > 3:
+            beans = beans[:3]
+            
+        # Validate each bean
+        valid_beans = []
+        for bean in beans:
+            if self._validate_bean(bean):
+                valid_beans.append(bean)
+                
+        # Store the validated beans
+        self._bean_inventory = valid_beans
+        
+        # In a real implementation, this would save to a persistent store
+        bean_count = len(valid_beans)
+        print(f"Set {bean_count} beans in inventory: " + 
+              ", ".join(bean.get('name', 'Unknown') for bean in valid_beans))
+              
+    def _validate_bean(self, bean: Dict[str, Any]) -> bool:
+        """
+        Validate bean information.
+        
+        Args:
+            bean (Dict): Bean information to validate
+            
+        Returns:
+            bool: True if bean is valid, False otherwise
+        """
+        # Check for required fields
+        required_fields = ['name', 'origin', 'roast', 'notes']
+        for field in required_fields:
+            if field not in bean or not bean[field]:
+                print(f"Missing required field: {field}")
+                return False
+                
+        # Validate roast level
+        valid_roasts = ["Light", "Medium", "Dark"]
+        if bean['roast'] not in valid_roasts:
+            print(f"Invalid roast level: {bean['roast']}. Must be one of: {', '.join(valid_roasts)}")
+            return False
+            
+        return True
 
 # Example usage demonstration
 def main():
@@ -437,6 +581,36 @@ def main():
         flavor_preferences=['fruity', 'bright']
     )
     print(fruity_recommendations)
+    
+    # Get bean inventory
+    print("\nBean Inventory:")
+    beans = coffee_db.get_bean_inventory()
+    for bean in beans:
+        print(f"- {bean['name']} ({bean['roast']}): {bean['notes']}")
+        
+    # Set custom bean inventory
+    print("\nSetting custom bean inventory:")
+    custom_beans = [
+        {
+            "name": "Costa Rica Tarrazu",
+            "origin": "Costa Rica", 
+            "roast": "Medium",
+            "notes": "bright, honey, clean"
+        },
+        {
+            "name": "Kenya AA",
+            "origin": "Kenya",
+            "roast": "Light",
+            "notes": "fruity, bright, citrus"
+        }
+    ]
+    coffee_db.set_bean_inventory(custom_beans)
+    
+    # Get updated bean inventory
+    print("\nUpdated Bean Inventory:")
+    updated_beans = coffee_db.get_bean_inventory()
+    for bean in updated_beans:
+        print(f"- {bean['name']} ({bean['roast']}): {bean['notes']}")
 
 if __name__ == "__main__":
     main()

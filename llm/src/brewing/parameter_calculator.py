@@ -1,223 +1,321 @@
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any, Optional
 
 class BrewingParameterCalculator:
     """
-    Calculates precise brewing parameters based on coffee characteristics.
+    Enhanced calculator for optimal brewing parameters based on coffee type
+    and bean characteristics.
     """
     
-    # Predefined brewing guidelines
-    BREWING_GUIDELINES = {
-        'espresso': {
-            'pressure': 9.0,  # standard espresso pressure
-            'typical_dose': 18.0,  # grams for double shot
-            'extraction_time': (25, 30)  # seconds
-        },
-        'americano': {
-            'base': 'espresso',
-            'water_ratio': 2.0  # 2 parts water to 1 part espresso
-        },
-        'pour_over': {
-            'pressure': 1.0,  # atmospheric pressure
-            'typical_dose': 15.0,  # grams
-            'water_ratio': 16.0  # grams of water per gram of coffee
-        },
-        'french_press': {
-            'pressure': 1.0,
-            'typical_dose': 15.0,
-            'steep_time': (4, 5)  # minutes
-        }
-    }
-    
-    @classmethod
+    @staticmethod
     def calculate_brewing_parameters(
-        cls, 
-        coffee_type: str, 
-        beans: List[Dict[str, Any]], 
-        total_dose: float = None
-    ) -> Dict[str, Union[float, int, List[float]]]:
+        coffee_type: str,
+        selected_beans: List[Dict[str, Any]],
+        serving_size: float = 20.0
+    ) -> Dict[str, Any]:
         """
-        Calculate comprehensive brewing parameters.
+        Calculate optimal brewing parameters for a specific coffee type and beans.
         
         Args:
-            coffee_type (str): Type of coffee brewing method
-            beans (List[Dict]): Selected coffee beans
-            total_dose (float, optional): Total coffee dose in grams
-        
-        Returns:
-            Dict: Comprehensive brewing parameters
-        """
-        # Normalize coffee type
-        coffee_type = coffee_type.lower().replace(' ', '_')
-        
-        # Get base guidelines
-        base_params = cls.BREWING_GUIDELINES.get(coffee_type, {})
-        
-        # Determine dose
-        if total_dose is None:
-            total_dose = base_params.get('typical_dose', 18.0)
-        
-        # Calculate parameters
-        params = {
-            'coffee_type': coffee_type,
-            'total_dose_g': total_dose,
-            'bean_details': beans
-        }
-        
-        # Add method-specific parameters
-        if coffee_type == 'espresso':
-            params.update({
-                'pressure_bar': base_params.get('pressure', 9.0),
-                'extraction_time_sec': base_params.get('extraction_time', (25, 30)),
-                'ideal_grind_size': 'fine',
-                'recommended_temp_c': cls._calculate_brew_temperature(beans)
-            })
-        
-        elif coffee_type == 'americano':
-            # Based on espresso with added water
-            espresso_params = cls.calculate_brewing_parameters('espresso', beans, total_dose)
-            params.update({
-                'espresso_base': espresso_params,
-                'water_ratio': base_params.get('water_ratio', 2.0),
-                'total_drink_volume_ml': total_dose * (1 + base_params.get('water_ratio', 2.0))
-            })
-        
-        elif coffee_type == 'pour_over':
-            params.update({
-                'pressure_bar': base_params.get('pressure', 1.0),
-                'water_ratio': base_params.get('water_ratio', 16.0),
-                'total_water_ml': total_dose * base_params.get('water_ratio', 16.0),
-                'recommended_temp_c': cls._calculate_brew_temperature(beans),
-                'pour_technique': cls._recommend_pour_over_technique(beans)
-            })
-        
-        elif coffee_type == 'french_press':
-            params.update({
-                'pressure_bar': base_params.get('pressure', 1.0),
-                'steep_time_min': base_params.get('steep_time', (4, 5)),
-                'grind_size': 'coarse',
-                'recommended_temp_c': cls._calculate_brew_temperature(beans)
-            })
-        
-        return params
-    
-    @staticmethod
-    def _calculate_brew_temperature(beans: List[Dict[str, Any]]) -> float:
-        """
-        Calculate optimal brewing temperature based on bean characteristics.
-        
-        Args:
-            beans (List[Dict]): Selected coffee beans
-        
-        Returns:
-            float: Recommended brewing temperature in Celsius
-        """
-        # Temperature ranges for different roast levels
-        TEMP_RANGES = {
-            "Light": (94, 96),
-            "Medium": (92, 94),
-            "Dark": (88, 91)
-        }
-        
-        # Collect roast levels
-        roast_levels = [bean.get('roast', 'Medium') for bean in beans]
-        
-        # Determine temperature based on roast levels
-        if "Light" in roast_levels:
-            base_range = TEMP_RANGES["Light"]
-        elif "Dark" in roast_levels:
-            base_range = TEMP_RANGES["Dark"]
-        else:
-            base_range = TEMP_RANGES["Medium"]
-        
-        # Fine-tune based on flavor notes
-        flavor_temp_adjustments = {
-            "fruity": 1,     # Slightly higher for bright flavors
-            "floral": 1,     # Slightly higher for delicate notes
-            "bold": -1,      # Slightly lower for bold flavors
-            "chocolatey": -1 # Slightly lower for rich, deep flavors
-        }
-        
-        temp_adjustment = 0
-        for bean in beans:
-            notes = bean.get('notes', '').lower()
-            for flavor, adjustment in flavor_temp_adjustments.items():
-                if flavor in notes:
-                    temp_adjustment += adjustment
-        
-        # Calculate final temperature
-        avg_temp = sum(base_range) / 2
-        final_temp = avg_temp + max(-2, min(2, temp_adjustment))
-        
-        return round(final_temp, 1)
-    
-    @staticmethod
-    def _recommend_pour_over_technique(beans: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Recommend pour-over technique based on bean characteristics.
-        
-        Args:
-            beans (List[Dict]): Selected coffee beans
-        
-        Returns:
-            Dict: Recommended pouring technique
-        """
-        # Analyze bean characteristics
-        technique = {
-            "initial_bloom_time_sec": 30,  # standard bloom time
-            "pour_style": "steady spiral"  # default technique
-        }
-        
-        # Adjust technique based on bean notes
-        for bean in beans:
-            notes = bean.get('notes', '').lower()
+            coffee_type (str): Type of coffee to brew
+            selected_beans (List[Dict]): Selected beans with their characteristics
+            serving_size (float): Serving size in grams
             
-            if "fruity" in notes:
-                # Lighter roasts might benefit from gentler pouring
-                technique["pour_style"] = "gentle circular"
-            
-            if "bold" in notes:
-                # Bolder beans might need more aggressive extraction
-                technique["initial_bloom_time_sec"] = 45
-                technique["pour_style"] = "aggressive spiral"
+        Returns:
+            Dict: Brewing parameters
+        """
+        # Baseline parameters by coffee type
+        baseline_params = BrewingParameterCalculator._get_baseline_parameters(coffee_type)
         
-        return technique
-
-# Example usage demonstration
-def main():
-    # Example bean selections
-    beans_fruity = [
-        {
-            "name": "Ethiopian Yirgacheffe",
-            "roast": "Light",
-            "notes": "fruity, floral"
-        }
-    ]
-    
-    beans_chocolatey = [
-        {
-            "name": "Brazilian Santos",
-            "roast": "Medium",
-            "notes": "chocolatey, nutty"
-        }
-    ]
-    
-    # Test different brewing methods
-    brewing_methods = ['espresso', 'americano', 'pour_over', 'french_press']
-    
-    for method in brewing_methods:
-        print(f"\n--- {method.upper()} Brewing Parameters ---")
+        # Adapt parameters based on bean characteristics
+        adjusted_params = BrewingParameterCalculator._adjust_for_beans(baseline_params, selected_beans)
         
-        # Use fruity beans for some methods, chocolatey for others
-        beans = beans_fruity if method in ['pour_over', 'espresso'] else beans_chocolatey
-        
-        # Calculate parameters
-        params = BrewingParameterCalculator.calculate_brewing_parameters(
-            method, beans
+        # Add coffee-to-water ratio and other calculated values
+        final_params = BrewingParameterCalculator._calculate_brewing_ratios(
+            adjusted_params, coffee_type, serving_size
         )
         
-        # Pretty print parameters
-        import json
-        print(json.dumps(params, indent=2))
-
-if __name__ == "__main__":
-    main()
+        return final_params
+    
+    @staticmethod
+    def _get_baseline_parameters(coffee_type: str) -> Dict[str, Any]:
+        """
+        Get baseline brewing parameters for different coffee types.
+        
+        Args:
+            coffee_type (str): Type of coffee
+            
+        Returns:
+            Dict: Baseline brewing parameters
+        """
+        # Normalize coffee type
+        normalized_type = coffee_type.lower().replace('_', '-')
+        
+        # Define baseline parameters for each coffee type
+        baseline_params = {
+            'espresso': {
+                'recommended_temp_c': 93,
+                'pressure_bar': 9.0,
+                'extraction_time': '25-30',
+                'ideal_grind_size': 'fine',
+                'coffee_water_ratio': 1/2,  # 1g coffee to 2ml water
+                'tds_target': '8-12%'  # Total Dissolved Solids target
+            },
+            'cappuccino': {
+                'recommended_temp_c': 93,
+                'pressure_bar': 9.0,
+                'extraction_time': '25-30',
+                'ideal_grind_size': 'fine',
+                'coffee_water_ratio': 1/2,
+                'milk_temp_c': 65,
+                'milk_ratio': '1:1'  # Espresso to milk ratio
+            },
+            'latte': {
+                'recommended_temp_c': 93,
+                'pressure_bar': 9.0,
+                'extraction_time': '25-30',
+                'ideal_grind_size': 'fine',
+                'coffee_water_ratio': 1/2,
+                'milk_temp_c': 65,
+                'milk_ratio': '1:3'  # Espresso to milk ratio
+            },
+            'americano': {
+                'recommended_temp_c': 93,
+                'pressure_bar': 9.0,
+                'extraction_time': '25-30',
+                'ideal_grind_size': 'fine',
+                'coffee_water_ratio': 1/2,
+                'dilution_ratio': '1:3'  # Espresso to water ratio
+            },
+            'pour-over': {
+                'recommended_temp_c': 94,
+                'extraction_time': '180-210',
+                'ideal_grind_size': 'medium-fine',
+                'coffee_water_ratio': 1/16,  # 1g coffee to 16ml water
+                'bloom_time': 30,  # Bloom time in seconds
+                'bloom_water_ratio': 2,  # Bloom water as multiple of coffee weight
+                'pour_technique': 'concentric circles'
+            },
+            'drip': {
+                'recommended_temp_c': 93,
+                'extraction_time': '240-300',
+                'ideal_grind_size': 'medium',
+                'coffee_water_ratio': 1/17,  # 1g coffee to 17ml water
+            },
+            'french-press': {
+                'recommended_temp_c': 95,
+                'extraction_time': '240',
+                'ideal_grind_size': 'coarse',
+                'coffee_water_ratio': 1/15,  # 1g coffee to 15ml water
+                'steep_time': 240  # Steep time in seconds
+            },
+            'cold-brew': {
+                'recommended_temp_c': 20,  # Room temperature
+                'extraction_time': '720-1440',  # 12-24 hours
+                'ideal_grind_size': 'coarse',
+                'coffee_water_ratio': 1/5,  # 1g coffee to 5ml water (stronger)
+                'steep_time': 1080  # 18 hours in seconds (default)
+            }
+        }
+        
+        # Return baseline parameters for the requested coffee type, or default to espresso if not found
+        return baseline_params.get(normalized_type, baseline_params['espresso'])
+    
+    @staticmethod
+    def _adjust_for_beans(
+        params: Dict[str, Any],
+        selected_beans: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Adjust brewing parameters based on bean characteristics.
+        
+        Args:
+            params (Dict): Baseline brewing parameters
+            selected_beans (List[Dict]): Selected beans
+            
+        Returns:
+            Dict: Adjusted brewing parameters
+        """
+        # If no beans provided, return unchanged parameters
+        if not selected_beans:
+            return params
+        
+        # Make a copy to avoid modifying the original
+        adjusted = params.copy()
+        
+        # Collect bean characteristics
+        bean_characteristics = {
+            'light_roast_count': 0,
+            'medium_roast_count': 0,
+            'dark_roast_count': 0,
+            'has_fruity': False,
+            'has_floral': False,
+            'has_chocolatey': False,
+            'has_nutty': False,
+            'has_earthy': False,
+            'has_bold': False,
+            'has_smooth': False
+        }
+        
+        # Analyze beans
+        for bean in selected_beans:
+            # Check roast levels
+            roast = bean.get('roast', '').lower()
+            if 'light' in roast:
+                bean_characteristics['light_roast_count'] += 1
+            elif 'dark' in roast:
+                bean_characteristics['dark_roast_count'] += 1
+            else:  # Default to medium
+                bean_characteristics['medium_roast_count'] += 1
+                
+            # Check flavor notes
+            notes = bean.get('notes', '').lower()
+            bean_characteristics['has_fruity'] |= any(f in notes for f in ['fruity', 'fruit', 'berry', 'citrus'])
+            bean_characteristics['has_floral'] |= any(f in notes for f in ['floral', 'flower', 'jasmine', 'rose'])
+            bean_characteristics['has_chocolatey'] |= any(f in notes for f in ['chocolate', 'cocoa', 'mocha'])
+            bean_characteristics['has_nutty'] |= any(f in notes for f in ['nutty', 'nut', 'almond', 'hazelnut'])
+            bean_characteristics['has_earthy'] |= any(f in notes for f in ['earthy', 'earth', 'woody'])
+            bean_characteristics['has_bold'] |= any(f in notes for f in ['bold', 'strong', 'intense'])
+            bean_characteristics['has_smooth'] |= any(f in notes for f in ['smooth', 'mild', 'balanced'])
+        
+        # Adjust temperature based on roast level
+        if 'recommended_temp_c' in adjusted:
+            if bean_characteristics['light_roast_count'] > 0:
+                # Lighter roasts need higher temperature
+                adjusted['recommended_temp_c'] += min(2, bean_characteristics['light_roast_count'])
+            elif bean_characteristics['dark_roast_count'] > 0:
+                # Darker roasts need lower temperature
+                adjusted['recommended_temp_c'] -= min(2, bean_characteristics['dark_roast_count'])
+        
+        # Adjust extraction time based on flavor characteristics
+        if 'extraction_time' in adjusted and '-' in adjusted['extraction_time']:
+            min_time, max_time = map(int, adjusted['extraction_time'].split('-'))
+            
+            # Fruity/floral benefits from shorter extraction
+            if bean_characteristics['has_fruity'] or bean_characteristics['has_floral']:
+                min_time = max(min_time - 2, min_time * 0.9)
+                max_time = max(max_time - 5, max_time * 0.9)
+            
+            # Chocolatey/earthy benefits from longer extraction
+            if bean_characteristics['has_chocolatey'] or bean_characteristics['has_earthy']:
+                min_time = min(min_time + 2, min_time * 1.1)
+                max_time = min(max_time + 5, max_time * 1.1)
+                
+            # Update extraction time
+            adjusted['extraction_time'] = f"{int(min_time)}-{int(max_time)}"
+        
+        # Adjust espresso pressure if applicable
+        if 'pressure_bar' in adjusted:
+            # Lower pressure for fruity/floral to reduce acidity
+            if bean_characteristics['has_fruity'] or bean_characteristics['has_floral']:
+                adjusted['pressure_bar'] = max(8.0, adjusted['pressure_bar'] - 0.5)
+            
+            # Higher pressure for bold/earthy to increase extraction
+            if bean_characteristics['has_bold'] or bean_characteristics['has_earthy']:
+                adjusted['pressure_bar'] = min(10.0, adjusted['pressure_bar'] + 0.5)
+        
+        # Fine-tune grind size adjustment based on flavor profile
+        if 'ideal_grind_size' in adjusted:
+            original_grind = adjusted['ideal_grind_size']
+            
+            # Convert grind size to numeric scale for adjustments
+            grind_scale = {
+                'extra-fine': 1,
+                'fine': 2,
+                'medium-fine': 3,
+                'medium': 4,
+                'medium-coarse': 5,
+                'coarse': 6,
+                'extra-coarse': 7
+            }
+            
+            # Get numeric value of original grind
+            if original_grind in grind_scale:
+                grind_value = grind_scale[original_grind]
+                
+                # Adjust for flavor characteristics
+                if bean_characteristics['has_smooth'] or bean_characteristics['has_chocolatey']:
+                    # Go one step coarser for smooth/chocolatey
+                    grind_value += 1
+                elif bean_characteristics['has_fruity'] or bean_characteristics['has_floral']:
+                    # Go one step finer for fruity/floral
+                    grind_value -= 1
+                
+                # Ensure grind value stays in range
+                grind_value = max(1, min(7, grind_value))
+                
+                # Convert back to text description
+                reverse_scale = {v: k for k, v in grind_scale.items()}
+                adjusted['ideal_grind_size'] = reverse_scale[grind_value]
+        
+        return adjusted
+    
+    @staticmethod
+    def _calculate_brewing_ratios(
+        params: Dict[str, Any],
+        coffee_type: str,
+        serving_size: float
+    ) -> Dict[str, Any]:
+        """
+        Calculate water amounts and ratios based on coffee weight.
+        
+        Args:
+            params (Dict): Brewing parameters
+            coffee_type (str): Type of coffee
+            serving_size (float): Serving size in grams
+            
+        Returns:
+            Dict: Complete brewing parameters with calculated values
+        """
+        # Make a copy to avoid modifying the original
+        final_params = params.copy()
+        
+        # Get coffee-to-water ratio
+        ratio = params.get('coffee_water_ratio', 1/16)  # Default to 1:16
+        
+        # Calculate water amount in ml
+        water_ml = serving_size / ratio
+        final_params['water_ml'] = round(water_ml)
+        
+        # Add brewing instructions based on coffee type
+        if coffee_type == 'espresso':
+            final_params['brew_instructions'] = f"Grind {serving_size}g coffee {params['ideal_grind_size']}. Extract with {final_params['water_ml']}ml water at {params['recommended_temp_c']}°C for {params['extraction_time']} seconds."
+        
+        elif coffee_type == 'pour-over':
+            bloom_water = serving_size * params.get('bloom_water_ratio', 2)
+            final_params['bloom_water_ml'] = round(bloom_water)
+            final_params['brew_instructions'] = f"Grind {serving_size}g coffee {params['ideal_grind_size']}. Bloom with {final_params['bloom_water_ml']}ml water for {params.get('bloom_time', 30)} seconds, then pour remaining {final_params['water_ml'] - final_params['bloom_water_ml']}ml in {params.get('pour_technique', 'spiral')} motion."
+        
+        elif coffee_type == 'french-press':
+            final_params['brew_instructions'] = f"Grind {serving_size}g coffee {params['ideal_grind_size']}. Add {final_params['water_ml']}ml water at {params['recommended_temp_c']}°C. Steep for {params.get('steep_time', 240)} seconds, then press slowly."
+        
+        elif coffee_type == 'cold-brew':
+            steep_hours = params.get('steep_time', 1080) / 60 / 60
+            final_params['brew_instructions'] = f"Grind {serving_size}g coffee {params['ideal_grind_size']}. Combine with {final_params['water_ml']}ml room temperature water. Steep for {steep_hours} hours, then filter."
+        
+        else:
+            # Generic instructions for other brew methods
+            final_params['brew_instructions'] = f"Use {serving_size}g coffee with {final_params['water_ml']}ml water at {params['recommended_temp_c']}°C."
+        
+        # Add yield information
+        if coffee_type in ['espresso', 'cappuccino', 'latte']:
+            final_params['yield_ml'] = round(serving_size * 2)  # Espresso yield is typically 2x the coffee weight
+            
+            if coffee_type == 'cappuccino':
+                milk_ratio = params.get('milk_ratio', '1:1')
+                milk_parts = int(milk_ratio.split(':')[1])
+                final_params['milk_ml'] = final_params['yield_ml'] * milk_parts
+                final_params['total_yield_ml'] = final_params['yield_ml'] + final_params['milk_ml']
+            
+            elif coffee_type == 'latte':
+                milk_ratio = params.get('milk_ratio', '1:3')
+                milk_parts = int(milk_ratio.split(':')[1])
+                final_params['milk_ml'] = final_params['yield_ml'] * milk_parts
+                final_params['total_yield_ml'] = final_params['yield_ml'] + final_params['milk_ml']
+        
+        else:
+            # For other brew methods, yield is roughly the water amount
+            # Accounting for some absorption by coffee grounds
+            absorption_factor = 1.8  # Coffee typically absorbs ~1.8x its weight in water
+            final_params['yield_ml'] = round(final_params['water_ml'] - (serving_size * absorption_factor))
+        
+        return final_params

@@ -97,13 +97,65 @@ const Home = () => {
       }
 
       const data = await response.json();
-      setBrewResult(data);
+      console.log("API Response:", data); // Debug log
+      
+      // Transform the API response to match our UI expectations
+      const transformedData = transformBrewingData(data);
+      setBrewResult(transformedData);
     } catch (error) {
       console.error("Error:", error);
       alert("Error calculating brew settings");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Function to transform backend data to match frontend expectations
+  const transformBrewingData = (apiResponse) => {
+    // Extract brewing parameters
+    const brewingParams = apiResponse.brewing_parameters || {};
+    
+    // Extract bean information
+    const beans = apiResponse.recommended_beans || [];
+    
+    // Transform beans to the expected format
+    const transformedBeans = beans.map((bean) => ({
+      name: bean.name || "Custom Blend",
+      roast: bean.roast_level || "Medium",
+      amount_g: bean.amount_g || apiResponse.serving_details?.coffee_g || 0,
+      notes: bean.flavor_notes?.join(", ") || bean.description || "Balanced flavor"
+    }));
+    
+    // Create additional notes from brewing instructions
+    const additionalNotes = [];
+    
+    if (apiResponse.brewing_instructions) {
+      additionalNotes.push(apiResponse.brewing_instructions);
+    }
+    
+    if (brewingParams.grind_instructions) {
+      additionalNotes.push(`Grind: ${brewingParams.grind_instructions}`);
+    }
+    
+    if (brewingParams.extraction_time) {
+      additionalNotes.push(`Extraction time: ${brewingParams.extraction_time} seconds`);
+    }
+    
+    // Return the transformed data
+    return {
+      coffee_type: apiResponse.coffee_type || "Espresso",
+      recommended_temperature: brewingParams.recommended_temp_c || brewingParams.temperature || 93,
+      flavor_profile: apiResponse.flavor_profile || brewingParams.flavor_profile || "Balanced",
+      beans: transformedBeans.length > 0 ? transformedBeans : [
+        {
+          name: "House Blend", 
+          roast: "Medium", 
+          amount_g: apiResponse.serving_details?.coffee_g || 21, 
+          notes: "Balanced flavor profile"
+        }
+      ],
+      additional_notes: additionalNotes
+    };
   };
 
   const handleUseExample = (example) => {

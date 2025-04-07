@@ -59,7 +59,8 @@ class CoffeeRequestParser:
             'origin': self._detect_origin(normalized_request),
             'roast_level': self._detect_roast_level(normalized_request),
             'serving_size': self._extract_serving_size(normalized_request),
-            'brewing_context': self._extract_brewing_context(normalized_request)
+            'brewing_context': self._extract_brewing_context(normalized_request),
+            'grind_size': 'constant'  # Set grind size to constant always
         }
         
         # Refine coffee type based on context if not explicitly specified

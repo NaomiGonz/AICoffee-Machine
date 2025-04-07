@@ -3,10 +3,8 @@ import requests
 import time
 import random
 
-# Define your FastAPI endpoint
 API_URL = "http://127.0.0.1:8000/brew"
 
-# Prompt categories and base prompts
 categories = {
     "bold_espresso": [
         "Make me a bold espresso",
@@ -45,13 +43,10 @@ categories = {
     ]
 }
 
-# Flatten and expand to 100+ prompts with modifiers
-all_prompts = []
 modifiers = ["", " please", " now", " this morning", " for a hot day", " that helps me relax", " with a kick"]
+serving_sizes = [3.0, 7.0, 10.0]
 
-for category, prompts in categories.items():
-    for prompt in prompts:
-        all_prompts.append((category, prompt))
+all_prompts = [(cat, prompt) for cat, prompts in categories.items() for prompt in prompts]
 
 for _ in range(80):
     cat = random.choice(list(categories.keys()))
@@ -59,21 +54,22 @@ for _ in range(80):
     modified = base + random.choice(modifiers)
     all_prompts.append((cat, modified))
 
-# CSV output
 output_file = "coffee_brew_results.csv"
 headers = [
-    "prompt_id", "category", "prompt", 
+    "prompt_id", "category", "prompt", "serving_size",
     "coffee_type", "flavor_profile", "recommended_temp", 
     "grind_size", "pressure_bar", "esp_command"
 ]
 
-with open(output_file, mode="w", newline="") as csvfile:
+with open(output_file, mode="w", newline="", encoding="utf-8") as csvfile:
     writer = csv.DictWriter(csvfile, fieldnames=headers)
     writer.writeheader()
 
     for i, (category, prompt) in enumerate(all_prompts, 1):
+        serving_size = random.choice(serving_sizes)
         try:
-            res = requests.post(API_URL, json={"query": prompt, "serving_size": 7.0})
+            res = requests.post(API_URL, json={"query": prompt, "serving_size": serving_size})
+            res.raise_for_status()
             data = res.json()
 
             brew = data.get("brewing_parameters", {})
@@ -81,14 +77,15 @@ with open(output_file, mode="w", newline="") as csvfile:
                 "prompt_id": i,
                 "category": category,
                 "prompt": prompt,
-                "coffee_type": data.get("coffee_type"),
-                "flavor_profile": data.get("flavor_profile"),
-                "recommended_temp": brew.get("recommended_temp_c"),
-                "grind_size": brew.get("ideal_grind_size"),
-                "pressure_bar": brew.get("pressure_bar"),
-                "esp_command": data.get("esp_command")
+                "serving_size": serving_size,
+                "coffee_type": data.get("coffee_type", "N/A"),
+                "flavor_profile": data.get("flavor_profile", "N/A"),
+                "recommended_temp": brew.get("recommended_temp_c", "N/A"),
+                "grind_size": brew.get("ideal_grind_size", "N/A"),
+                "pressure_bar": brew.get("pressure_bar", "N/A"),
+                "esp_command": data.get("esp_command", "N/A")
             })
-            print(f"[{i}] ✅ Processed: {prompt}")
-            time.sleep(1)  # Be nice to the server
+            print(f"[{i}] ✅ Processed ({serving_size} oz): {prompt}")
+            time.sleep(1)
         except Exception as e:
-            print(f"[{i}] ❌ Failed: {prompt} | Error: {e}")
+            print(f"[{i}] ❌ Failed ({serving_size} oz): {prompt} | Error: {e}")

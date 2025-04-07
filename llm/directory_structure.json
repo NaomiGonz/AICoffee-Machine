@@ -1,0 +1,80 @@
+{
+    "coffee_analysis": {
+        "coffee_3d_scatter.png": null,
+        "coffee_recipe_cards.png": null,
+        "coffee_recipes.csv": null,
+        "coffee_heatmap.png": null,
+        "coffee_scatter_matrix.png": null,
+        "parameter_correlation.png": null,
+        "coffee_profile_chart.png": null,
+        "coffee_radar_chart.png": null
+    },
+    "mass_test_coffee_brew.py": null,
+    "coffee_brew_results.csv": null,
+    "plot.py": null,
+    ".DS_Store": null,
+    "requirements.txt": null,
+    "__pycache__": {
+        "main.cpython-310.pyc": null
+    },
+    ".env": null,
+    "structure.py": null,
+    "app.py": null,
+    "user_feedback.json": null,
+    "data": {
+        "robusta_data_cleaned.csv": null,
+        "arabica_data_cleaned.csv": null
+    },
+    "src": {
+        "database": {
+            "enchanced_bean_selector.py": null,
+            "__init__.py": null,
+            "__pycache__": {
+                "bean_selector.cpython-310.pyc": null,
+                "coffee_database.cpython-310.pyc": null,
+                "__init__.cpython-310.pyc": null
+            },
+            "bean_selector.py": null,
+            "coffee_database.py": null
+        },
+        "brewing": {
+            "recommendation_engine.py": null,
+            "__init__.py": null,
+            "__pycache__": {
+                "recommendation_engine.cpython-310.pyc": null,
+                "parameter_calculator.cpython-310.pyc": null,
+                "__init__.cpython-310.pyc": null
+            },
+            "parameter_calculator.py": null
+        },
+        ".DS_Store": null,
+        "__init__.py": null,
+        "__pycache__": {
+            "__init__.cpython-310.pyc": null
+        },
+        "ml": {
+            "preference_optimizer.py": null,
+            "__init__.py": null,
+            "__pycache__": {
+                "preference_optimizer.cpython-310.pyc": null,
+                "__init__.cpython-310.pyc": null,
+                "feedback_processor.cpython-310.pyc": null
+            },
+            "feedback_processor.py": null
+        },
+        "nlp": {
+            "prompt_generator.py": null,
+            "__init__.py": null,
+            "__pycache__": {
+                "prompt_generator.cpython-310.pyc": null,
+                "request_parser.cpython-310.pyc": null,
+                "__init__.cpython-310.pyc": null,
+                "llm_handler.cpython-310.pyc": null
+            },
+            "o_request_parser.py": null,
+            "llm_handler.py": null,
+            "request_parser.py": null,
+            "o_llm_handler.py": null
+        }
+    }
+}

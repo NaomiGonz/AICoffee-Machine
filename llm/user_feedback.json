@@ -481,6 +481,225 @@
       },
       "rating": 8.5,
       "comments": "Enjoyed the recommendation!"
+    },
+    {
+      "timestamp": "2025-04-06T17:12:31.296096",
+      "brewing_details": {
+        "coffee_type": "espresso",
+        "beans": [
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Light",
+            "notes": "full-bodied, complex, bright",
+            "amount_g": 11.2,
+            "grind_size": "constant"
+          },
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Medium",
+            "notes": "medium-bodied, bright, high-quality",
+            "amount_g": 4.4,
+            "grind_size": "constant"
+          },
+          {
+            "name": "Guatemala nan",
+            "origin": "Guatemala",
+            "roast": "Medium",
+            "notes": "spicy, medium-bodied, high-quality",
+            "amount_g": 4.4,
+            "grind_size": "constant"
+          }
+        ],
+        "brewing_parameters": {
+          "coffee_type": "espresso",
+          "total_dose_g": 20.0,
+          "bean_details": [
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Light",
+              "notes": "full-bodied, complex, bright",
+              "amount_g": 11.2,
+              "grind_size": "constant"
+            },
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Medium",
+              "notes": "medium-bodied, bright, high-quality",
+              "amount_g": 4.4,
+              "grind_size": "constant"
+            },
+            {
+              "name": "Guatemala nan",
+              "origin": "Guatemala",
+              "roast": "Medium",
+              "notes": "spicy, medium-bodied, high-quality",
+              "amount_g": 4.4,
+              "grind_size": "constant"
+            }
+          ],
+          "grind_size": "constant",
+          "pressure_bar": 9.0,
+          "extraction_time_sec": [
+            25,
+            30
+          ],
+          "recommended_temp_c": 95.0
+        },
+        "flavor_profile": "full-bodied, complex, bright & medium-bodied, bright, high-quality & spicy, medium-bodied, high-quality",
+        "recommended_temperature": 97.0,
+        "additional_notes": [
+          "The Ethiopia guji-hambela will highlight bright, fruity notes at a slightly higher brewing temperature."
+        ],
+        "grind_size": "constant"
+      },
+      "rating": 8.5,
+      "comments": "Enjoyed the recommendation!"
+    },
+    {
+      "timestamp": "2025-04-06T17:12:31.299879",
+      "brewing_details": {
+        "coffee_type": "cappuccino",
+        "beans": [
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Light",
+            "notes": "full-bodied, complex, bright",
+            "amount_g": 6.6,
+            "grind_size": "constant"
+          },
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Medium",
+            "notes": "medium-bodied, bright, high-quality",
+            "amount_g": 6.7,
+            "grind_size": "constant"
+          },
+          {
+            "name": "Guatemala nan",
+            "origin": "Guatemala",
+            "roast": "Medium",
+            "notes": "spicy, medium-bodied, high-quality",
+            "amount_g": 6.7,
+            "grind_size": "constant"
+          }
+        ],
+        "brewing_parameters": {
+          "coffee_type": "cappuccino",
+          "total_dose_g": 20.0,
+          "bean_details": [
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Light",
+              "notes": "full-bodied, complex, bright",
+              "amount_g": 6.6,
+              "grind_size": "constant"
+            },
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Medium",
+              "notes": "medium-bodied, bright, high-quality",
+              "amount_g": 6.7,
+              "grind_size": "constant"
+            },
+            {
+              "name": "Guatemala nan",
+              "origin": "Guatemala",
+              "roast": "Medium",
+              "notes": "spicy, medium-bodied, high-quality",
+              "amount_g": 6.7,
+              "grind_size": "constant"
+            }
+          ],
+          "grind_size": "constant"
+        },
+        "flavor_profile": "full-bodied, complex, bright & medium-bodied, bright, high-quality & spicy, medium-bodied, high-quality",
+        "recommended_temperature": 97.0,
+        "additional_notes": [
+          "The Ethiopia guji-hambela will highlight bright, fruity notes at a slightly higher brewing temperature."
+        ],
+        "grind_size": "constant"
+      },
+      "rating": 8.5,
+      "comments": "Enjoyed the recommendation!"
+    },
+    {
+      "timestamp": "2025-04-06T17:12:31.307727",
+      "brewing_details": {
+        "coffee_type": "drip",
+        "beans": [
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Medium",
+            "notes": "medium-bodied, bright, high-quality",
+            "amount_g": 8.3,
+            "grind_size": "constant"
+          },
+          {
+            "name": "Guatemala nan",
+            "origin": "Guatemala",
+            "roast": "Medium",
+            "notes": "spicy, medium-bodied, high-quality",
+            "amount_g": 8.3,
+            "grind_size": "constant"
+          },
+          {
+            "name": "Ethiopia guji-hambela",
+            "origin": "Ethiopia",
+            "roast": "Light",
+            "notes": "full-bodied, complex, bright",
+            "amount_g": 3.3,
+            "grind_size": "constant"
+          }
+        ],
+        "brewing_parameters": {
+          "coffee_type": "drip",
+          "total_dose_g": 20.0,
+          "bean_details": [
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Medium",
+              "notes": "medium-bodied, bright, high-quality",
+              "amount_g": 8.3,
+              "grind_size": "constant"
+            },
+            {
+              "name": "Guatemala nan",
+              "origin": "Guatemala",
+              "roast": "Medium",
+              "notes": "spicy, medium-bodied, high-quality",
+              "amount_g": 8.3,
+              "grind_size": "constant"
+            },
+            {
+              "name": "Ethiopia guji-hambela",
+              "origin": "Ethiopia",
+              "roast": "Light",
+              "notes": "full-bodied, complex, bright",
+              "amount_g": 3.3,
+              "grind_size": "constant"
+            }
+          ],
+          "grind_size": "constant"
+        },
+        "flavor_profile": "medium-bodied, bright, high-quality & spicy, medium-bodied, high-quality & full-bodied, complex, bright",
+        "recommended_temperature": 97.0,
+        "additional_notes": [
+          "The Ethiopia guji-hambela will highlight bright, fruity notes at a slightly higher brewing temperature."
+        ],
+        "grind_size": "constant"
+      },
+      "rating": 8.5,
+      "comments": "Enjoyed the recommendation!"
     }
   ]
 }

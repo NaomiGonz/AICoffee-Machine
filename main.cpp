@@ -5,8 +5,8 @@
 #include <ctype.h>      // For toupper()
 
 // --- Operation Mode ---
-// #define WEB_MODE      // Uncomment for Web Server control
-#define SERIAL_MODE // Uncomment for Serial Monitor control
+#define WEB_MODE      // Uncomment for Web Server control
+// #define SERIAL_MODE // Uncomment for Serial Monitor control (Can be active alongside WEB_MODE)
 
 #ifdef WEB_MODE
 #include <WiFi.h>
@@ -28,9 +28,9 @@ WebServer server(80);
 // ==========================================================
 
 // VESC Control (Check your actual VESC connections)
-// Assuming VESC1=Grinder/Duty, VESC2=Drum/RPM based on previous state
-const int VESC1_RX_PIN = 12; // Serial1 RX for GRINDER Motor VESC (Duty)
-const int VESC1_TX_PIN = 13; // Serial1 TX for GRINDER Motor VESC (Duty)
+// VESC1 = Grinder (Current Control), VESC2 = Drum (RPM Control)
+const int VESC1_RX_PIN = 12; // Serial1 RX for GRINDER Motor VESC (Current)
+const int VESC1_TX_PIN = 13; // Serial1 TX for GRINDER Motor VESC (Current)
 const int VESC2_RX_PIN = 16; // Serial2 RX for DRUM Motor VESC (RPM)
 const int VESC2_TX_PIN = 17; // Serial2 TX for DRUM Motor VESC (RPM)
 
@@ -65,11 +65,12 @@ enum PWMLedcChannels {
   HEATER_LEDC_CHANNEL = 5  // LEDC Channel for Heater (Changed from 1)
 };
 
-// VESC Ramping Configuration (VESC1=Grinder/Duty, VESC2=Drum/RPM)
-#define DUTY_STEP_SIZE         0.001f // Grinder motor (VESC1) Duty step
-#define DUTY_STEP_INTERVAL_US  500UL  // Grinder motor (VESC1) step interval (micros)
-#define RPM_STEP_SIZE          7.0f   // Drum motor (VESC2) RPM step
-#define RPM_STEP_INTERVAL_US   100UL  // Drum motor (VESC2) step interval (micros)
+// VESC Configuration (VESC1=Grinder/Current, VESC2=Drum/RPM)
+// Note: Ramping for current control is removed, target current is sent periodically.
+// Duty settings are now only relevant for VESC1 command sending frequency.
+#define CURRENT_SEND_INTERVAL_US 500UL // How often to send target current (micros) - Was DUTY_STEP_INTERVAL_US
+#define RPM_STEP_SIZE            7.0f   // Drum motor (VESC2) RPM step
+#define RPM_STEP_INTERVAL_US     100UL  // Drum motor (VESC2) step interval (micros)
 
 
 // Water Pump Flow Sensor Calibration (Replace with your specific sensor calibration)
@@ -110,6 +111,7 @@ const unsigned long REVERSE_DURATION_MS = (unsigned long)(SERVO_PERIOD_MS * REVE
 
 // Coffee Machine Safety Parameters
 #define HEATER_TIMEOUT 5000     // Heater auto-off if pump not used (ms)
+#define NO_FLOW_TIMEOUT 2000    // Heater auto-off if no flow detected for this duration (ms) <-- NEW
 #define POST_PUMP_COOLDOWN 1000 // Heater off delay after pump stops (ms)
 #define QUEUE_SIZE 20           // Command queue capacity
 
@@ -117,14 +119,13 @@ const unsigned long REVERSE_DURATION_MS = (unsigned long)(SERVO_PERIOD_MS * REVE
 // --- Global Variables & Objects ---
 // ==========================================================
 
-// VESC Objects and State (VESC1=Grinder/Duty, VESC2=Drum/RPM)
-VescUart vesc1; // Grinder Motor (Duty Control)
+// VESC Objects and State (VESC1=Grinder/Current, VESC2=Drum/RPM)
+VescUart vesc1; // Grinder Motor (Current Control)
 VescUart vesc2; // Drum Motor (RPM Control)
-float currentDuty1 = 0.0f; // Current Duty for VESC1 (Grinder)
-float targetDuty1  = 0.0f; // Target Duty for VESC1 (Grinder)
-float currentRpm2 = 0.0f; // Current RPM for VESC2 (Drum)
+float targetCurrent1 = 0.0f; // Target Current for VESC1 (Grinder) in Amps <-- CHANGED
+float currentRpm2 = 0.0f; // Current RPM for VESC2 (Drum) - used for ramping
 float targetRpm2  = 0.0f; // Target RPM for VESC2 (Drum)
-uint32_t lastDutyStepTime = 0; // Timer for VESC1 duty stepping
+uint32_t lastCurrentSendTime = 0; // Timer for VESC1 current sending <-- RENAMED from lastDutyStepTime
 uint32_t lastRpmStepTime  = 0; // Timer for VESC2 RPM stepping
 
 
@@ -177,11 +178,15 @@ bool pumpUsedSinceHeaterOn = false;    // Flag for heater safety timeout
 unsigned long heaterStartTime = 0;     // Time heater was turned ON
 unsigned long generalDelayEndTime = 0; // Time when 'D' command delay finishes
 
+// --- State for No-Flow Safety Check --- <-- NEW
+unsigned long lastPulseCheckCount = 0; // Stores pulseCount during previous safety check
+unsigned long lastNoPulseTime = 0;     // Stores millis() when heater was ON but no flow started
+
 // Command structure and queue definitions
-enum CommandType { CMD_R, CMD_G, CMD_P, CMD_H, CMD_S, CMD_D, CMD_INVALID }; // R=Drum RPM, G=Grinder Duty
+enum CommandType { CMD_R, CMD_G, CMD_P, CMD_H, CMD_S, CMD_D, CMD_INVALID }; // R=Drum RPM, G=Grinder Current
 struct Command {
   CommandType type;
-  float value1 = 0; // R:RPM, G:Duty, P:Volume, H:Power%, S:Duration(sec), D:Delay(ms)
+  float value1 = 0; // R:RPM, G:Amps, P:Volume, H:Power%, S:Duration(sec), D:Delay(ms) <-- G changed
   float value2 = 0; // P:Flow Rate
   char id = ' ';    // S: Servo ID (A, B, C, D)
 };
@@ -236,18 +241,7 @@ int calculateFeedforwardDuty(float targetRate) {
   return constrain((int)round(dutyFloat), 0, 255); // Round and clamp to 0-255
 }
 
-// --- VESC Ramping Helpers (VESC1=Grinder/Duty, VESC2=Drum/RPM) ---
-// Gradually steps the current duty towards the target duty for VESC1
-void stepDuty1() {
-    float diff = targetDuty1 - currentDuty1;
-    if (fabs(diff) <= DUTY_STEP_SIZE) {
-        currentDuty1 = targetDuty1; // Snap to target if close enough
-    } else {
-        currentDuty1 += (diff > 0 ? DUTY_STEP_SIZE : -DUTY_STEP_SIZE); // Increment or decrement
-    }
-    currentDuty1 = constrain(currentDuty1, -1.0f, 1.0f); // Ensure within valid range
-}
-
+// --- VESC Ramping Helper (VESC2=Drum/RPM Only) --- <-- REMOVED stepDuty1
 // Gradually steps the current RPM towards the target RPM for VESC2
 void stepRpm2() {
     float diff = targetRpm2 - currentRpm2;
@@ -267,8 +261,6 @@ Command parseToken(const String& token) {
 
   // Basic validation: must be at least 3 chars (e.g., R-0) and have '-' at index 1
   if (token.length() < 3 || token[1] != '-') {
-      // Optionally print error for malformed tokens, but can be noisy
-      // Serial.println("Invalid format (must be X-...). Token: " + token);
       return cmd;
    }
 
@@ -281,12 +273,13 @@ Command parseToken(const String& token) {
       cmd.type = CMD_R;
       cmd.value1 = params.toFloat();
       break;
-    case 'G': // G-<duty> (Grinder Duty)
+    case 'G': // G-<amps> (Grinder Current) <-- CHANGED
       cmd.type = CMD_G;
       cmd.value1 = params.toFloat();
-      if (cmd.value1 < -1.0 || cmd.value1 > 1.0) {
-         Serial.println("Warning: Grinder Duty " + String(cmd.value1) + " out of range (-1.0 to 1.0). Clamping may occur.");
-         // Optionally clamp here: cmd.value1 = constrain(cmd.value1, -1.0f, 1.0f);
+      // Validate current range (0 to 2 Amps)
+      if (cmd.value1 < 0.0 || cmd.value1 > 2.0) {
+         Serial.println("Warning: Grinder Current " + String(cmd.value1) + " Amps out of range (0.0 to 2.0). Clamping will occur.");
+         // Value will be clamped during execution
       }
       break;
     case 'P': // P-<volume>-<rate>
@@ -356,71 +349,25 @@ Command parseToken(const String& token) {
 }
 
 // Counts the number of valid command tokens within a space-separated string
-// Used to check if the queue has enough space *before* trying to add commands.
 int countValidCommandsInString(const String& input) {
-    String currentToken;
-    int validCount = 0;
+    String currentToken; int validCount = 0;
     for (int i = 0; i < input.length(); i++) {
-        // Check for space delimiter or end of string
         if (input[i] == ' ' || i == input.length() - 1) {
-            // Include the last character if it's not a space
-            if (i == input.length() - 1 && input[i] != ' ') {
-                currentToken += input[i];
-            }
-            currentToken.trim(); // Remove leading/trailing whitespace from the token
-            if (currentToken.length() > 0) {
-                // Parse the token just to check its validity
-                if (parseToken(currentToken).type != CMD_INVALID) {
-                    validCount++; // Increment count if valid
-                }
-            }
-            currentToken = ""; // Reset for the next token
-        } else {
-            currentToken += input[i]; // Build the current token character by character
-        }
-    }
-    return validCount;
+            if (i == input.length() - 1 && input[i] != ' ') currentToken += input[i];
+            currentToken.trim(); if (currentToken.length() > 0) { if (parseToken(currentToken).type != CMD_INVALID) validCount++; } currentToken = "";
+        } else { currentToken += input[i]; }
+    } return validCount;
 }
 
 // Parses a command string and adds *valid* commands to the queue.
-// Assumes space availability has been pre-checked using countValidCommandsInString.
 void processAndEnqueueCommands(const String& input) {
-    String currentToken;
-    int cmdAddedCount = 0;
+    String currentToken; int cmdAddedCount = 0;
     for (int i = 0; i < input.length(); i++) {
-        // Check for space delimiter or end of string
         if (input[i] == ' ' || i == input.length() - 1) {
-            // Include the last character if it's not a space
-            if (i == input.length() - 1 && input[i] != ' ') {
-                currentToken += input[i];
-            }
-            currentToken.trim(); // Remove leading/trailing whitespace
-            if (currentToken.length() > 0) {
-                Command cmd = parseToken(currentToken); // Parse the token
-                // If the command is valid, add it to the queue
-                if (cmd.type != CMD_INVALID) {
-                     if (queueCount < QUEUE_SIZE) { // Double-check space (safety)
-                        cmdQueue[queueRear] = cmd; // Add command to the rear
-                        queueRear = (queueRear + 1) % QUEUE_SIZE; // Move rear pointer (circular)
-                        queueCount++; // Increment command count
-                        cmdAddedCount++;
-                    } else {
-                         // This should not happen if pre-check worked, but log error if it does
-                         Serial.println("ERROR: Queue full during enqueue - Pre-check failed?");
-                         break; // Stop processing this string if queue is unexpectedly full
-                    }
-                }
-            }
-            currentToken = ""; // Reset for the next token
-        } else {
-            currentToken += input[i]; // Build the token
-        }
-    }
-     // Report how many commands were successfully added
-     if (cmdAddedCount > 0) {
-        Serial.print(cmdAddedCount);
-        Serial.println(" command(s) successfully queued.");
-    }
+            if (i == input.length() - 1 && input[i] != ' ') currentToken += input[i];
+            currentToken.trim(); if (currentToken.length() > 0) { Command cmd = parseToken(currentToken); if (cmd.type != CMD_INVALID) { if (queueCount < QUEUE_SIZE) { cmdQueue[queueRear] = cmd; queueRear = (queueRear + 1) % QUEUE_SIZE; queueCount++; cmdAddedCount++; } else { Serial.println("ERROR: Queue full during enqueue."); break; } } } currentToken = "";
+        } else { currentToken += input[i]; }
+    } if (cmdAddedCount > 0) { Serial.print(cmdAddedCount); Serial.println(" command(s) successfully queued."); }
 }
 
 
@@ -449,8 +396,7 @@ void handleRoot() {
   <h1>ESP32 Device Control</h1>
   <form action='/command' method='POST' id='commandForm'>
     <label for='cmd'>Command String:</label>
-    <input type='text' id='cmd' name='cmd' size='50' placeholder='e.g., R-1000 G-0.5 P-50-2.0 H-75 S-A-5 D-1000'>
-    <button type='submit'>Send Command</button>
+    <input type='text' id='cmd' name='cmd' size='50' placeholder='e.g., R-1000 G-1.5 P-50-2.0 H-75 S-A-5 D-1000'> <button type='submit'>Send Command</button>
   </form>
 
   <div class='status-container'>
@@ -480,11 +426,6 @@ void handleRoot() {
 
     // Initial status load on page load
     document.addEventListener('DOMContentLoaded', updateStatus);
-
-    // Optional: Clear input after submission?
-    // document.getElementById('commandForm').addEventListener('submit', function() {
-    //   setTimeout(() => { this.reset(); }, 100); // Short delay before reset
-    // });
   </script>
   </body></html>)";
   server.send(200, "text/html", html);
@@ -492,56 +433,26 @@ void handleRoot() {
 
 // Handles POST requests to "/command" - receives and processes command strings
 void handleCommand() {
-  // Check if the 'cmd' argument exists in the POST request
-  if (!server.hasArg("cmd")) {
-    server.send(400, "text/plain", "Bad Request: Missing 'cmd' argument.");
-    return;
-  }
-  String input = server.arg("cmd"); // Get the command string
-  input.trim(); // Remove leading/trailing whitespace
-  Serial.println("Received Web Command: " + input); // Log received command
-
-  if (input.length() == 0) {
-      server.send(400, "text/plain", "Bad Request: Empty command string.");
-      return;
-  }
-
-  // --- Queue Pre-Check: Ensure enough space before processing ---
-  int requiredSlots = countValidCommandsInString(input); // Count how many valid commands are in the string
-  int availableSlots = QUEUE_SIZE - queueCount;         // Calculate available space
-
-  if (requiredSlots == 0) {
-       server.send(400, "text/plain", "No valid commands found in the input string.");
-       Serial.println("Web command rejected: No valid commands found.");
-  } else if (requiredSlots > availableSlots) {
-      // Not enough space in the queue
-      String msg = "Queue full. Required: " + String(requiredSlots) +
-                   ", Available: " + String(availableSlots) + ". Command rejected.";
-      server.send(503, "text/plain", msg); // 503 Service Unavailable (Queue Full)
-      Serial.println(msg);
-  } else {
-      // --- Enqueue Commands: Space is available ---
-      processAndEnqueueCommands(input); // Parse again and add valid commands to queue
-      String msg = String(requiredSlots) + " command(s) accepted. Queue: " +
-                   String(queueCount) + "/" + String(QUEUE_SIZE);
-      server.send(200, "text/plain", msg); // Send success response
-      // Serial printing already happens in processAndEnqueueCommands
-  }
+  if (!server.hasArg("cmd")) { server.send(400, "text/plain", "Bad Request: Missing 'cmd'."); return; }
+  String input = server.arg("cmd"); input.trim(); Serial.println("Received Web Command: " + input);
+  if (input.length() == 0) { server.send(400, "text/plain", "Bad Request: Empty command."); return; }
+  int requiredSlots = countValidCommandsInString(input); int availableSlots = QUEUE_SIZE - queueCount;
+  if (requiredSlots == 0) { server.send(400, "text/plain", "No valid commands found."); Serial.println("Web command rejected: No valid commands."); }
+  else if (requiredSlots > availableSlots) { String msg = "Queue full. Required: " + String(requiredSlots) + ", Available: " + String(availableSlots); server.send(503, "text/plain", msg); Serial.println(msg); }
+  else { processAndEnqueueCommands(input); String msg = String(requiredSlots) + " command(s) accepted. Queue: " + String(queueCount) + "/" + String(QUEUE_SIZE); server.send(200, "text/plain", msg); }
 }
 
 // Handles GET requests to "/status" - provides current machine status
 void handleStatus() {
   String status = "--- VESC Status ---\n";
-  // VESC1 = Grinder (Duty), VESC2 = Drum (RPM)
-  status += "Grinder (Duty): Target=" + String(targetDuty1, 3) + ", Current=" + String(currentDuty1, 3) + "\n";
+  // VESC1 = Grinder (Current), VESC2 = Drum (RPM)
+  status += "Grinder (Amps): Target=" + String(targetCurrent1, 2) + " A\n"; // <-- CHANGED to show target current
   status += "Drum (RPM): Target=" + String(targetRpm2) + ", Current=" + String(currentRpm2, 0) + "\n";
   status += "--- Water Pump Status ---\n";
   status += "State: " + String(dispensingActive ? "DISPENSING" : "IDLE") + "\n";
   status += "Target: " + String(targetVolumeML, 1) + " mL @ " + String(targetFlowRateMLPS, 2) + " mL/s\n";
   status += "Current: " + String(dispensedVolumeML, 1) + " mL / " + String(currentFlowRateMLPS, 2) + " mL/s\n";
-  noInterrupts(); // Read volatile pulseCount safely
-  status += "Pulses: " + String(pulseCount) + "\n";
-  interrupts();
+  noInterrupts(); status += "Pulses: " + String(pulseCount) + "\n"; interrupts();
   status += "--- Heater Status ---\n";
   status += "State: " + String(heaterActive ? "ON" : "OFF") + "\n";
   status += "--- Servo Status ---\n";
@@ -549,23 +460,15 @@ void handleStatus() {
   unsigned long now = millis();
   for (int i = 0; i < 4; ++i) {
       status += String(states[i]->id) + ": ";
-      if (states[i]->isRunning) {
-          status += String(states[i]->isForward ? "FWD" : "REV");
-          status += " (Speed " + String(states[i]->isForward ? states[i]->forwardSpeed : states[i]->reverseSpeed) + ")";
-          // Calculate remaining time safely (prevent underflow)
-          unsigned long remaining_ms = (states[i]->stopTime > now) ? (states[i]->stopTime - now) : 0;
-          status += " Rem: " + String(remaining_ms / 1000.0, 1) + "s"; // Show one decimal place
-      } else {
-          status += "STOPPED (Speed " + String(SERVO_STOP_SPEED) + ")";
-      }
+      if (states[i]->isRunning) { status += String(states[i]->isForward ? "FWD" : "REV"); status += " (Speed " + String(states[i]->isForward ? states[i]->forwardSpeed : states[i]->reverseSpeed) + ")"; unsigned long remaining_ms = (states[i]->stopTime > now) ? (states[i]->stopTime - now) : 0; status += " Rem: " + String(remaining_ms / 1000.0, 1) + "s"; }
+      else { status += "STOPPED (Speed " + String(SERVO_STOP_SPEED) + ")"; }
       status += " | ";
   }
-  // Remove trailing " | "
   if (status.endsWith(" | ")) { status = status.substring(0, status.length() - 3); }
   status += "\n--- System Status ---\n";
   status += "Command Queue: " + String(queueCount) + "/" + String(QUEUE_SIZE) + "\n";
   status += "Delay Active: " + String(millis() < generalDelayEndTime ? "YES (" + String((generalDelayEndTime - millis())/1000.0, 1) + "s left)" : "NO") + "\n";
-  status += "Uptime: " + String(millis() / 1000) + " s\n"; // Add uptime
+  status += "Uptime: " + String(millis() / 1000) + " s\n";
 
   server.send(200, "text/plain", status); // Send the status text
 }
@@ -582,30 +485,14 @@ void handleNotFound() {
 
 // Helper to get the character for the command type (for printing)
 char getCommandTypeChar(CommandType type) {
-    switch (type) {
-        case CMD_R: return 'R'; case CMD_G: return 'G'; case CMD_P: return 'P';
-        case CMD_H: return 'H'; case CMD_S: return 'S'; case CMD_D: return 'D';
-        default: return '?';
-    }
+    switch (type) { case CMD_R: return 'R'; case CMD_G: return 'G'; case CMD_P: return 'P'; case CMD_H: return 'H'; case CMD_S: return 'S'; case CMD_D: return 'D'; default: return '?'; }
 }
 
 // Executes the next command from the queue if available and no delay is active
 void executeCommandFromQueue() {
-  // Check if queue has commands and the general delay timer has passed
   if (queueCount > 0 && millis() >= generalDelayEndTime) {
-    // Get command from the front of the queue
-    Command cmd = cmdQueue[queueFront];
-    // Advance the front pointer (circularly)
-    queueFront = (queueFront + 1) % QUEUE_SIZE;
-    // Decrement the count of commands in the queue
-    queueCount--;
-
-    // Print indication that a command is being executed
-    Serial.print("Executing Cmd: ");
-    Serial.print(getCommandTypeChar(cmd.type)); // Print command letter (R, G, P...)
-    Serial.print("-"); // Print separator
-
-    // Execute based on command type
+    Command cmd = cmdQueue[queueFront]; queueFront = (queueFront + 1) % QUEUE_SIZE; queueCount--;
+    Serial.print("Executing Cmd: "); Serial.print(getCommandTypeChar(cmd.type)); Serial.print("-");
     switch (cmd.type) {
       case CMD_R: // Set Drum Target RPM (VESC2)
         Serial.println(String(cmd.value1));
@@ -613,242 +500,92 @@ void executeCommandFromQueue() {
         // Ramping happens continuously in updateVescControl()
         break;
 
-      case CMD_G: // Set Grinder Target Duty (VESC1)
-        Serial.println(String(cmd.value1, 3));
-        targetDuty1 = constrain(cmd.value1, -1.0f, 1.0f); // Update target duty, constrained
-        // Ramping happens continuously in updateVescControl()
+      case CMD_G: // Set Grinder Target Current (VESC1) <-- CHANGED
+        Serial.println(String(cmd.value1, 2) + " Amps"); // Print target current
+        // Clamp value to 0-2A range and update target
+        targetCurrent1 = constrain(cmd.value1, 0.0f, 2.0f);
+        // Target current is sent periodically in updateVescControl()
         break;
 
       case CMD_P: // Start Water Dispensing
         Serial.println(String(cmd.value1, 1) + "-" + String(cmd.value2, 2));
-        // Prevent starting if already running
         if (!dispensingActive) {
-          targetVolumeML = cmd.value1;     // Set target volume
-          targetFlowRateMLPS = cmd.value2; // Set target flow rate
-
-          // Reset pump state variables for the new dispense cycle
-          dispensedVolumeML = 0.0;
-          noInterrupts(); // Safely reset volatile pulseCount
-          pulseCount = 0;
-          interrupts();
-          lastPulseCount = 0;      // Reset for delta calculation
-          lastPulsePrintTime = 0;  // Reset print timer
-          currentFlowRateMLPS = 0.0; // Reset current rate calculation
-          // Reset PID terms
+          targetVolumeML = cmd.value1; targetFlowRateMLPS = cmd.value2;
+          dispensedVolumeML = 0.0; noInterrupts(); pulseCount = 0; interrupts();
+          lastPulseCount = 0; lastPulsePrintTime = 0; currentFlowRateMLPS = 0.0;
           pidError = 0.0; lastError = 0.0; integralError = 0.0; derivativeError = 0.0; pidOutput = 0.0;
-          // Calculate initial feedforward duty based on target rate
           feedforwardDuty = calculateFeedforwardDuty(targetFlowRateMLPS);
-
-          // Record start time and reset timers
-          dispenseStartTime = millis();
-          lastFlowCalcTime = dispenseStartTime;
-          lastControlTime = dispenseStartTime;
-
-          dispensingActive = true;       // Set flag that pump is active
-          pumpUsedSinceHeaterOn = true; // Mark pump as used (for heater safety timeout)
-
-          Serial.print("  Starting dispense. Target: "); Serial.print(targetVolumeML);
-          Serial.print("mL @ "); Serial.print(targetFlowRateMLPS);
-          Serial.print("mL/s. FF Duty: "); Serial.println(feedforwardDuty);
-          // Apply initial duty cycle (mostly feedforward)
+          dispenseStartTime = millis(); lastFlowCalcTime = dispenseStartTime; lastControlTime = dispenseStartTime;
+          dispensingActive = true; pumpUsedSinceHeaterOn = true;
+          Serial.print("  Starting dispense. Target: "); Serial.print(targetVolumeML); Serial.print("mL @ "); Serial.print(targetFlowRateMLPS); Serial.print("mL/s. FF Duty: "); Serial.println(feedforwardDuty);
           ledcWrite(PUMP_LEDC_CHANNEL, feedforwardDuty);
-        } else {
-          // Pump is already running, log a warning
-          Serial.println("  Warning: Cannot start pump, already dispensing.");
-        }
+        } else { Serial.println("  Warning: Pump already dispensing."); }
         break;
 
       case CMD_H: // Set Heater Power
-      { // Use block scope
-        Serial.println(String(cmd.value1)); // Print target power %
-        // Map power percentage (0-100) to PWM duty cycle (0-255)
+      {
+        Serial.println(String(cmd.value1));
         int heaterDuty = map(constrain((int)cmd.value1, 0, 100), 0, 100, 0, 255);
-        ledcWrite(HEATER_LEDC_CHANNEL, heaterDuty); // Set heater PWM
-        heaterActive = (heaterDuty > 0); // Update heater active flag
+        ledcWrite(HEATER_LEDC_CHANNEL, heaterDuty);
+        heaterActive = (heaterDuty > 0);
         if (heaterActive) {
-          heaterStartTime = millis();      // Record time heater was turned on
-          pumpUsedSinceHeaterOn = false; // Reset pump usage flag for timeout check
+          heaterStartTime = millis();
+          pumpUsedSinceHeaterOn = false;
+          // Reset no-flow safety check state when heater turns ON <-- NEW
+          noInterrupts();
+          lastPulseCheckCount = pulseCount; // Initialize with current count
+          interrupts();
+          lastNoPulseTime = 0; // Reset timer
           Serial.println("  Heater ON");
         } else {
            Serial.println("  Heater OFF");
+           lastNoPulseTime = 0; // Also reset timer if heater is turned off explicitly
         }
         break;
       }
       case CMD_S: // Start Servo Periodic Movement
-        { // Block scope
-            float durationSeconds = cmd.value1; // Duration comes from parsed command value1
-            unsigned long durationMillis = (unsigned long)(durationSeconds * 1000.0f); // Convert to ms
-            unsigned long currentTime = millis(); // Get current time
-            ServoControlState* stateToUpdate = nullptr; // Pointer to the state struct to modify
-
-            // Print details
-            Serial.print(cmd.id); // S-ID
-            Serial.print("-");
-            Serial.println(String(durationSeconds, 1) + "s"); // S-ID-Duration
-
-            // Find the correct servo state struct based on the ID
-            switch (cmd.id) {
-                case 'A': stateToUpdate = &servoAState; break;
-                case 'B': stateToUpdate = &servoBState; break;
-                case 'C': stateToUpdate = &servoCState; break;
-                case 'D': stateToUpdate = &servoDState; break;
-                default:
-                    Serial.println("  Error: Invalid Servo ID in command queue!"); // Should have been caught by parser
-                    break;
-            }
-
-            // If a valid state struct was found, start the servo sequence
-            if (stateToUpdate != nullptr) {
-                stateToUpdate->isRunning = true;                         // Mark servo as running
-                stateToUpdate->stopTime = currentTime + durationMillis;  // Calculate when it should stop
-                stateToUpdate->periodStartTime = currentTime;            // Start the first period now
-                stateToUpdate->isForward = true;                         // Always start moving forward
-                stateToUpdate->servoObject.write(stateToUpdate->forwardSpeed); // Command initial speed
-
-                // Log the start action
-                Serial.print("  Servo "); Serial.print(cmd.id);
-                Serial.print(" starting periodic run for "); Serial.print(durationSeconds, 1); Serial.println("s");
-                Serial.print("    -> Starting FORWARD (Speed: "); Serial.print(stateToUpdate->forwardSpeed); Serial.println(")");
-            }
+        {
+            float durationSeconds = cmd.value1; unsigned long durationMillis = (unsigned long)(durationSeconds * 1000.0f); unsigned long currentTime = millis(); ServoControlState* stateToUpdate = nullptr;
+            Serial.print(cmd.id); Serial.print("-"); Serial.println(String(durationSeconds, 1) + "s");
+            switch (cmd.id) { case 'A': stateToUpdate = &servoAState; break; case 'B': stateToUpdate = &servoBState; break; case 'C': stateToUpdate = &servoCState; break; case 'D': stateToUpdate = &servoDState; break; default: Serial.println("  Error: Invalid Servo ID!"); break; }
+            if (stateToUpdate != nullptr) { stateToUpdate->isRunning = true; stateToUpdate->stopTime = currentTime + durationMillis; stateToUpdate->periodStartTime = currentTime; stateToUpdate->isForward = true; stateToUpdate->servoObject.write(stateToUpdate->forwardSpeed); Serial.print("  Servo "); Serial.print(cmd.id); Serial.print(" starting periodic run for "); Serial.print(durationSeconds, 1); Serial.println("s"); Serial.print("    -> Starting FORWARD (Speed: "); Serial.print(stateToUpdate->forwardSpeed); Serial.println(")"); }
         }
         break;
 
       case CMD_D: // Start General Delay
-        Serial.println(String(cmd.value1, 0) + "ms"); // Print delay duration
-        generalDelayEndTime = millis() + (unsigned long)cmd.value1; // Set time when delay ends
+        Serial.println(String(cmd.value1, 0) + "ms");
+        generalDelayEndTime = millis() + (unsigned long)cmd.value1;
         Serial.println("  Delaying execution...");
         break;
 
-      default: // Should not happen if parseToken works correctly
-        Serial.println(" ERROR: Executing invalid command type from queue!");
-        break;
+      default: Serial.println(" ERROR: Executing invalid command type!"); break;
     }
   }
 }
 
 // Manages the water pump state, flow calculation, and PID control when active
 void updateWaterPump() {
-  // Only run logic if the pump dispensing sequence is active
-  if (!dispensingActive) return;
-
-  unsigned long currentTime = millis(); // Get current time once for this function call
-
+  if (!dispensingActive) return; // Exit if pump not active
+  unsigned long currentTime = millis();
   // --- Periodic Pulse Count Printing ---
-  // Print the raw pulse count at regular intervals for debugging/monitoring
-  if (currentTime - lastPulsePrintTime >= PULSE_PRINT_INTERVAL) {
-      noInterrupts(); // Safely read the volatile pulseCount variable
-      unsigned long currentPulses = pulseCount;
-      interrupts();
-
-      //Serial.print("Pump Active - Ticks: "); // Print status message
-      //Serial.println(currentPulses);         // Print the count
-
-      lastPulsePrintTime = currentTime; // Reset the timer for the next print interval
-  }
-
+  if (currentTime - lastPulsePrintTime >= PULSE_PRINT_INTERVAL) { noInterrupts(); unsigned long currentPulses = pulseCount; interrupts(); /*Serial.print("Pump Active - Ticks: "); Serial.println(currentPulses);*/ lastPulsePrintTime = currentTime; } // Commented out the actual print
   // --- Flow Rate Calculation Task ---
-  // Calculate flow rate based on pulses counted over the interval
-  if (currentTime - lastFlowCalcTime >= flowCalcInterval) {
-    noInterrupts(); // Safely read volatile pulseCount
-    unsigned long currentPulses = pulseCount;
-    interrupts();
-
-    unsigned long deltaPulses = currentPulses - lastPulseCount; // Pulses since last calculation
-    float deltaTimeSeconds = (currentTime - lastFlowCalcTime) / 1000.0; // Time elapsed in seconds
-    lastFlowCalcTime = currentTime; // Update time for next interval
-    lastPulseCount = currentPulses; // Update count for next interval's delta
-
-    // Calculate rate if time has passed
-    if (deltaTimeSeconds > 0.001) { // Avoid division by zero on very fast loops
-        float pps = (float)deltaPulses / deltaTimeSeconds; // Pulses per second
-        // Estimate Ticks/mL based on current/target flow rate for conversion
-        float ticksPerML_est = getTicksPerML(currentFlowRateMLPS > 0.05 ? currentFlowRateMLPS : targetFlowRateMLPS);
-        // Calculate flow rate in mL/s
-        if (ticksPerML_est > 0.1) {
-            currentFlowRateMLPS = pps / ticksPerML_est;
-            // Update total dispensed volume using this interval's data
-            dispensedVolumeML += (float)deltaPulses / ticksPerML_est;
-        } else {
-            currentFlowRateMLPS = 0.0; // Assume zero flow if ticks/mL is invalid
-        }
-    }
-    // else: Very short interval, skip calculation this cycle
-  }
-
+  if (currentTime - lastFlowCalcTime >= flowCalcInterval) { noInterrupts(); unsigned long currentPulses = pulseCount; interrupts(); unsigned long deltaPulses = currentPulses - lastPulseCount; float deltaTimeSeconds = (currentTime - lastFlowCalcTime) / 1000.0; lastFlowCalcTime = currentTime; lastPulseCount = currentPulses; if (deltaTimeSeconds > 0.001) { float pps = (float)deltaPulses / deltaTimeSeconds; float ticksPerML_est = getTicksPerML(currentFlowRateMLPS > 0.05 ? currentFlowRateMLPS : targetFlowRateMLPS); if (ticksPerML_est > 0.1) { currentFlowRateMLPS = pps / ticksPerML_est; dispensedVolumeML += (float)deltaPulses / ticksPerML_est; } else { currentFlowRateMLPS = 0.0; } } }
   // --- PID Control Task ---
-  // Adjust pump PWM duty cycle to maintain target flow rate
-  if (currentTime - lastControlTime >= controlInterval) {
-      float dt = (currentTime - lastControlTime) / 1000.0; // Delta time in seconds
-      lastControlTime = currentTime; // Update time for next interval
-
-      if (dt > 0.001) { // Avoid division by zero
-          // --- Calculate PID terms ---
-          pidError = targetFlowRateMLPS - currentFlowRateMLPS; // Error = Target - Actual
-          integralError += pidError * dt;                      // Accumulate integral term
-          integralError = constrain(integralError, -maxIntegral, maxIntegral); // Apply anti-windup
-          derivativeError = (pidError - lastError) / dt;       // Calculate derivative term
-          pidOutput = (kp * pidError) + (ki * integralError) + (kd * derivativeError); // Calculate total PID output
-
-          lastError = pidError; // Store current error for next derivative calculation
-
-          // --- Combine Feedforward and PID ---
-          // Feedforward provides baseline duty, PID provides correction
-          int totalDuty = calculateFeedforwardDuty(targetFlowRateMLPS) + (int)round(pidOutput);
-
-          // --- Constrain total duty cycle to valid PWM range (0-255) ---
-          totalDuty = constrain(totalDuty, 0, 255);
-
-          // --- Apply control signal to pump ---
-          ledcWrite(PUMP_LEDC_CHANNEL, totalDuty);
-
-          // --- Optional: Print PID status for tuning ---
-          // Serial.print("PID: Err="); Serial.print(pidError, 2); Serial.print(" Int="); Serial.print(integralError, 2);
-          // Serial.print(" Der="); Serial.print(derivativeError, 2); Serial.print(" Out="); Serial.print(pidOutput, 2);
-          // Serial.print(" FF="); Serial.print(feedforwardDuty); Serial.print(" TotalDuty="); Serial.println(totalDuty);
-      }
-  }
-
+  if (currentTime - lastControlTime >= controlInterval) { float dt = (currentTime - lastControlTime) / 1000.0; lastControlTime = currentTime; if (dt > 0.001) { pidError = targetFlowRateMLPS - currentFlowRateMLPS; integralError += pidError * dt; integralError = constrain(integralError, -maxIntegral, maxIntegral); derivativeError = (pidError - lastError) / dt; pidOutput = (kp * pidError) + (ki * integralError) + (kd * derivativeError); lastError = pidError; int totalDuty = calculateFeedforwardDuty(targetFlowRateMLPS) + (int)round(pidOutput); totalDuty = constrain(totalDuty, 0, 255); ledcWrite(PUMP_LEDC_CHANNEL, totalDuty); } }
   // --- Check Stop Condition ---
-  // Stop dispensing if the target volume has been reached
-  if (dispensedVolumeML >= targetVolumeML) {
-    ledcWrite(PUMP_LEDC_CHANNEL, 0); // Stop the pump PWM
-    dispensingActive = false;       // Update state flag
-    unsigned long duration = millis() - dispenseStartTime; // Calculate total duration
-
-    // Print summary of the completed dispense operation
-    Serial.println("\n--- Dispense Complete ---");
-    Serial.print("Target Vol: "); Serial.print(targetVolumeML, 1); Serial.println(" mL");
-    Serial.print("Actual Vol: "); Serial.print(dispensedVolumeML, 1); Serial.println(" mL");
-    Serial.print("Target Rate: "); Serial.print(targetFlowRateMLPS, 2); Serial.println(" mL/s");
-    // Calculate and print average flow rate
-    if (duration > 0) {
-        float avgFlowRate = (dispensedVolumeML / ((float)duration / 1000.0));
-        Serial.print("Average Rate: "); Serial.print(avgFlowRate, 2); Serial.println(" mL/s");
-    }
-    Serial.print("Duration: "); Serial.print(duration); Serial.println(" ms");
-    noInterrupts(); // Safely read final pulse count
-    Serial.print("Final Pulse Count: "); Serial.println(pulseCount);
-    interrupts();
-    Serial.println("-------------------------");
-
-    // If heater was active, potentially start cooldown delay
-    if (heaterActive) {
-        generalDelayEndTime = millis() + POST_PUMP_COOLDOWN; // Start post-pump heater cooldown delay
-        Serial.println("Heater cooldown started (" + String(POST_PUMP_COOLDOWN) + "ms)");
-    }
-  }
+  if (dispensedVolumeML >= targetVolumeML) { ledcWrite(PUMP_LEDC_CHANNEL, 0); dispensingActive = false; unsigned long duration = millis() - dispenseStartTime; Serial.println("\n--- Dispense Complete ---"); Serial.print("Target Vol: "); Serial.print(targetVolumeML, 1); Serial.println(" mL"); Serial.print("Actual Vol: "); Serial.print(dispensedVolumeML, 1); Serial.println(" mL"); Serial.print("Target Rate: "); Serial.print(targetFlowRateMLPS, 2); Serial.println(" mL/s"); if (duration > 0) { float avgFlowRate = (dispensedVolumeML / ((float)duration / 1000.0)); Serial.print("Average Rate: "); Serial.print(avgFlowRate, 2); Serial.println(" mL/s"); } Serial.print("Duration: "); Serial.print(duration); Serial.println(" ms"); noInterrupts(); Serial.print("Final Pulse Count: "); Serial.println(pulseCount); interrupts(); Serial.println("-------------------------"); if (heaterActive) { generalDelayEndTime = millis() + POST_PUMP_COOLDOWN; Serial.println("Heater cooldown started (" + String(POST_PUMP_COOLDOWN) + "ms)"); } }
 }
 
-// Updates VESC control signals based on ramping logic
-// VESC1=Grinder/Duty, VESC2=Drum/RPM
+// Updates VESC control signals
+// VESC1=Grinder (Current), VESC2=Drum (RPM)
 void updateVescControl() {
   uint32_t now_us = micros(); // Use microseconds for finer control interval
 
-  // Step VESC1 (Grinder Duty) if interval passed
-  if ((now_us - lastDutyStepTime) >= DUTY_STEP_INTERVAL_US) {
-    stepDuty1();                  // Calculate next duty step
-    vesc1.setDuty(currentDuty1); // Send updated Duty command to VESC1
-    lastDutyStepTime = now_us;    // Reset timer
+  // Send Target Current for VESC1 (Grinder) periodically <-- CHANGED
+  if ((now_us - lastCurrentSendTime) >= CURRENT_SEND_INTERVAL_US) {
+    vesc1.setCurrent(targetCurrent1); // Send the target current directly
+    lastCurrentSendTime = now_us;    // Reset timer
   }
 
   // Step VESC2 (Drum RPM) if interval passed
@@ -861,48 +598,15 @@ void updateVescControl() {
 
 // Updates the state of a single servo (periodic motion, stopping)
 void updateServo(ServoControlState& state) {
-  // Only run if the servo was commanded to run
-  if (!state.isRunning) return;
-
-  unsigned long currentTime = millis(); // Get current time
-
-  // --- Check 1: Has the total run time expired? ---
-  if (currentTime >= state.stopTime) {
-    state.servoObject.write(SERVO_STOP_SPEED); // Stop the servo
-    state.isRunning = false;                   // Mark as not running
-    Serial.print("Servo "); Serial.print(state.id);
-    Serial.println(" stopped (Total time elapsed). Speed: " + String(SERVO_STOP_SPEED));
-    return; // Finished with this servo
-  }
-
-  // --- Check 2: Handle periodic forward/reverse motion ---
-  unsigned long timeInPeriod = currentTime - state.periodStartTime; // Time elapsed in current period
-
-  if (state.isForward) {
-    // Currently moving forward, check if it's time to switch to reverse
-    if (timeInPeriod >= FORWARD_DURATION_MS) {
-      state.servoObject.write(state.reverseSpeed); // Switch to reverse speed
-      state.isForward = false;                     // Update direction flag
-      // Log the direction change
-      Serial.print("Servo "); Serial.print(state.id);
-      Serial.print(" switching to REVERSE (Speed: "); Serial.print(state.reverseSpeed); Serial.println(")");
-      // Don't reset periodStartTime here, we are still within the same period cycle
-    }
-  } else { // Currently moving reverse
-    // Check if the full period duration is complete
-    if (timeInPeriod >= SERVO_PERIOD_MS) {
-      state.servoObject.write(state.forwardSpeed); // Switch back to forward speed
-      state.isForward = true;                      // Update direction flag
-      state.periodStartTime = currentTime;         // Start the *next* period cycle now
-      // Log the direction change
-       Serial.print("Servo "); Serial.print(state.id);
-       Serial.print(" switching to FORWARD (Speed: "); Serial.print(state.forwardSpeed); Serial.println(")");
-    }
-  }
+  if (!state.isRunning) return; unsigned long currentTime = millis();
+  if (currentTime >= state.stopTime) { state.servoObject.write(SERVO_STOP_SPEED); state.isRunning = false; Serial.print("Servo "); Serial.print(state.id); Serial.println(" stopped (Total time elapsed). Speed: " + String(SERVO_STOP_SPEED)); return; }
+  unsigned long timeInPeriod = currentTime - state.periodStartTime;
+  if (state.isForward) { if (timeInPeriod >= FORWARD_DURATION_MS) { state.servoObject.write(state.reverseSpeed); state.isForward = false; Serial.print("Servo "); Serial.print(state.id); Serial.print(" switching to REVERSE (Speed: "); Serial.print(state.reverseSpeed); Serial.println(")"); } }
+  else { if (timeInPeriod >= SERVO_PERIOD_MS) { state.servoObject.write(state.forwardSpeed); state.isForward = true; state.periodStartTime = currentTime; Serial.print("Servo "); Serial.print(state.id); Serial.print(" switching to FORWARD (Speed: "); Serial.print(state.forwardSpeed); Serial.println(")"); } }
 }
 
 
-// Checks for safety conditions (heater timeout, post-pump cooldown)
+// Checks for safety conditions
 void checkSafetyFeatures() {
     unsigned long currentTime = millis();
 
@@ -911,26 +615,54 @@ void checkSafetyFeatures() {
         Serial.println("Safety Trigger: Heater timed out (pump not used). Turning OFF.");
         ledcWrite(HEATER_LEDC_CHANNEL, 0); // Turn off heater PWM
         heaterActive = false;              // Update state flag
+        lastNoPulseTime = 0; // Reset no-flow timer as well when heater turns off
     }
 
-    // 2. Heater Cooldown after Pump: Turn off heater after post-pump delay, only if pump is NOT running
-    // This relies on generalDelayEndTime being set correctly when the pump finishes.
+    // 2. No-Flow Timeout: Turn off heater if it's on but no flow detected <-- NEW / RE-ADDED
+    if (heaterActive) {
+        unsigned long currentPulses;
+        noInterrupts(); // Safely read volatile pulseCount
+        currentPulses = pulseCount;
+        interrupts();
+
+        if (currentPulses == lastPulseCheckCount) {
+            // No change in pulses since last check
+            if (lastNoPulseTime == 0) {
+                // Start the timer if it wasn't already running
+                lastNoPulseTime = currentTime;
+            } else {
+                // Timer was already running, check if timeout exceeded
+                if (currentTime - lastNoPulseTime > NO_FLOW_TIMEOUT) {
+                    Serial.println("Safety Trigger: Heater ON but no flow detected for > " + String(NO_FLOW_TIMEOUT) + "ms. Turning OFF.");
+                    ledcWrite(HEATER_LEDC_CHANNEL, 0); // Turn off heater PWM
+                    heaterActive = false;              // Update state flag
+                    lastNoPulseTime = 0; // Reset timer after triggering
+                }
+            }
+        } else {
+            // Flow detected (pulse count changed), reset the timer
+            lastNoPulseTime = 0;
+        }
+        // Update the count for the *next* check AFTER comparison
+        lastPulseCheckCount = currentPulses;
+    } else {
+         // If heater is OFF, ensure the no-flow timer is reset
+         lastNoPulseTime = 0;
+    }
+
+
+    // 3. Heater Cooldown after Pump: Turn off heater after post-pump delay
     if (!dispensingActive && heaterActive && generalDelayEndTime > 0 && currentTime >= generalDelayEndTime) {
-        // Check if the delay end time is plausibly the post-pump cooldown end time
         // Calculate roughly when the pump actually stopped
         unsigned long actualPumpStopTime = dispenseStartTime + (unsigned long)((dispensedVolumeML / (targetFlowRateMLPS > 0 ? targetFlowRateMLPS : 1.0)) * 1000.0);
         // Check if the general delay ended shortly after the pump stopped + cooldown period
-        // Add a small buffer (e.g., 200ms) for timing variations
         if (generalDelayEndTime > actualPumpStopTime && generalDelayEndTime < (actualPumpStopTime + POST_PUMP_COOLDOWN + 200) ) {
            Serial.println("Heater post-pump cooldown finished. Turning OFF.");
            ledcWrite(HEATER_LEDC_CHANNEL, 0); // Turn off heater PWM
            heaterActive = false;              // Update state flag
+           lastNoPulseTime = 0; // Reset no-flow timer as well
         }
-        // Note: generalDelayEndTime doesn't need explicit reset; time just passes it.
     }
-
-    // Note: The no-flow safety check from a previous version was removed as per code state.
-    // If needed, it would be added here.
 }
 
 
@@ -938,94 +670,29 @@ void checkSafetyFeatures() {
 // --- ESP32 Setup ---
 // ==========================================================
 void setup() {
-  Serial.begin(SERIAL_BAUD);
-  // Wait up to 2 seconds for Serial Monitor to connect (optional)
-  while (!Serial && millis() < 2000);
+  Serial.begin(SERIAL_BAUD); while (!Serial && millis() < 2000);
   Serial.println("\n\n--- Combined Control System Initializing ---");
 
-  // --- Logic Level Shifter Enable ---
-  pinMode(OE_PIN, OUTPUT);
-  digitalWrite(OE_PIN, HIGH); // Enable the shifter (Active HIGH assumed)
-  Serial.println("Logic Level Shifter Enabled (Pin " + String(OE_PIN) + ")");
-
-  // --- VESC Setup (VESC1=Grinder/Duty, VESC2=Drum/RPM) ---
+  pinMode(OE_PIN, OUTPUT); digitalWrite(OE_PIN, HIGH); Serial.println("Logic Level Shifter Enabled (Pin " + String(OE_PIN) + ")");
+  // VESC Setup (VESC1=Grinder/Current, VESC2=Drum/RPM)
   Serial1.begin(SERIAL_BAUD, SERIAL_8N1, VESC1_RX_PIN, VESC1_TX_PIN); // Grinder VESC UART
   Serial2.begin(SERIAL_BAUD, SERIAL_8N1, VESC2_RX_PIN, VESC2_TX_PIN); // Drum VESC UART
-  vesc1.setSerialPort(&Serial1); // Assign Serial1 to vesc1 object
-  vesc2.setSerialPort(&Serial2); // Assign Serial2 to vesc2 object
-  Serial.println("VESC UART Ports Initialized (VESC1=Grinder, VESC2=Drum).");
-
-  // --- Water Pump Setup ---
-  pinMode(PUMP_PWM_PIN, OUTPUT);
-  // Setup LEDC PWM channel for the pump (using PUMP_LEDC_CHANNEL = 4)
-  ledcSetup(PUMP_LEDC_CHANNEL, PWM_FREQ, PWM_RES);
-  ledcAttachPin(PUMP_PWM_PIN, PUMP_LEDC_CHANNEL); // Attach pin to channel
-  ledcWrite(PUMP_LEDC_CHANNEL, 0); // Ensure pump is off initially
-  // Setup flow sensor pin and interrupt
-  pinMode(FLOW_SENSOR_PIN, INPUT_PULLUP); // Use pullup if sensor is open-collector/drain
-  attachInterrupt(digitalPinToInterrupt(FLOW_SENSOR_PIN), flowISR, RISING); // Attach ISR
-  Serial.println("Water Pump & Flow Sensor Initialized.");
-
-  // --- Heater Setup ---
-  pinMode(HEATER_PIN, OUTPUT);
-  // Setup LEDC PWM channel for the heater (using HEATER_LEDC_CHANNEL = 5)
-  ledcSetup(HEATER_LEDC_CHANNEL, PWM_FREQ, PWM_RES);
-  ledcAttachPin(HEATER_PIN, HEATER_LEDC_CHANNEL); // Attach pin to channel
-  ledcWrite(HEATER_LEDC_CHANNEL, 0); // Ensure heater is off initially
-  Serial.println("Heater Initialized.");
-
-  // --- Servo Setup ---
-  ESP32PWM::allocateTimer(0); // Allocate timers needed by ESP32Servo library
-  ESP32PWM::allocateTimer(1);
-  ESP32PWM::allocateTimer(2);
-  ESP32PWM::allocateTimer(3);
-  servoA.attach(SERVO_PIN_A); // Attach servo objects to pins
-  servoB.attach(SERVO_PIN_B);
-  servoC.attach(SERVO_PIN_C);
-  servoD.attach(SERVO_PIN_D);
-  servoA.write(SERVO_STOP_SPEED); // Set initial stopped position
-  servoB.write(SERVO_STOP_SPEED);
-  servoC.write(SERVO_STOP_SPEED);
-  servoD.write(SERVO_STOP_SPEED);
-  Serial.println("Servos Initialized & Stopped (Speed: " + String(SERVO_STOP_SPEED) + ").");
+  vesc1.setSerialPort(&Serial1); vesc2.setSerialPort(&Serial2); Serial.println("VESC UART Ports Initialized (VESC1=Grinder Current, VESC2=Drum RPM)."); // <-- Updated comment
+  // Pump Setup
+  pinMode(PUMP_PWM_PIN, OUTPUT); ledcSetup(PUMP_LEDC_CHANNEL, PWM_FREQ, PWM_RES); ledcAttachPin(PUMP_PWM_PIN, PUMP_LEDC_CHANNEL); ledcWrite(PUMP_LEDC_CHANNEL, 0); pinMode(FLOW_SENSOR_PIN, INPUT_PULLUP); attachInterrupt(digitalPinToInterrupt(FLOW_SENSOR_PIN), flowISR, RISING); Serial.println("Water Pump & Flow Sensor Initialized.");
+  // Heater Setup
+  pinMode(HEATER_PIN, OUTPUT); ledcSetup(HEATER_LEDC_CHANNEL, PWM_FREQ, PWM_RES); ledcAttachPin(HEATER_PIN, HEATER_LEDC_CHANNEL); ledcWrite(HEATER_LEDC_CHANNEL, 0); Serial.println("Heater Initialized.");
+  // Servo Setup
+  ESP32PWM::allocateTimer(0); ESP32PWM::allocateTimer(1); ESP32PWM::allocateTimer(2); ESP32PWM::allocateTimer(3); servoA.attach(SERVO_PIN_A); servoB.attach(SERVO_PIN_B); servoC.attach(SERVO_PIN_C); servoD.attach(SERVO_PIN_D); servoA.write(SERVO_STOP_SPEED); servoB.write(SERVO_STOP_SPEED); servoC.write(SERVO_STOP_SPEED); servoD.write(SERVO_STOP_SPEED); Serial.println("Servos Initialized & Stopped (Speed: " + String(SERVO_STOP_SPEED) + ").");
 
 #ifdef WEB_MODE
-  // --- WiFi & Web Server Setup ---
-  Serial.print("Connecting to WiFi: "); Serial.println(ssid);
-  WiFi.begin(ssid, password);
-  int wifi_retries = 0;
-  // Wait for connection (with timeout)
-  while (WiFi.status() != WL_CONNECTED && wifi_retries < 20) {
-    delay(500); Serial.print("."); wifi_retries++;
-   }
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nWiFi Connected!");
-    Serial.print("IP Address: "); Serial.println(WiFi.localIP());
-    /* // Optional mDNS setup - Add #include <ESPmDNS.h> and MDNS.update() in loop
-    if (MDNS.begin("esp32-control")) { // Set hostname for mDNS (e.g., http://esp32-control.local)
-      Serial.println("mDNS responder started (esp32-control.local)");
-       MDNS.addService("http", "tcp", 80); // Announce web server service
-    } else { Serial.println("Error setting up mDNS responder!"); }
-    */
-    // Define web server routes
-    server.on("/", HTTP_GET, handleRoot);          // Serve the main HTML page
-    server.on("/command", HTTP_POST, handleCommand); // Handle command submissions
-    server.on("/status", HTTP_GET, handleStatus);    // Provide status updates
-    server.onNotFound(handleNotFound);             // Handle invalid URLs
-    server.begin();                                // Start the web server
-    Serial.println("Web Server Started.");
-  } else {
-    Serial.println("\nWiFi Connection Failed!");
-    // Consider fallback action? (e.g., restart, enter error state)
-  }
-#endif // WEB_MODE
+  Serial.print("Connecting to WiFi: "); Serial.println(ssid); WiFi.begin(ssid, password); int wifi_retries = 0; while (WiFi.status() != WL_CONNECTED && wifi_retries < 20) { delay(500); Serial.print("."); wifi_retries++; } if (WiFi.status() == WL_CONNECTED) { Serial.println("\nWiFi Connected!"); Serial.print("IP Address: "); Serial.println(WiFi.localIP()); server.on("/", HTTP_GET, handleRoot); server.on("/command", HTTP_POST, handleCommand); server.on("/status", HTTP_GET, handleStatus); server.onNotFound(handleNotFound); server.begin(); Serial.println("Web Server Started."); } else { Serial.println("\nWiFi Connection Failed!"); }
+#endif
 
-  // --- Print Ready Message and Command Help ---
   Serial.println("\n--- System Ready ---");
-  Serial.println("Enter commands via Serial Monitor or Web Interface (if enabled).");
   Serial.println("Format examples:");
   Serial.println("  R-<rpm>           (Drum RPM, e.g., R-3000)");
-  Serial.println("  G-<duty>          (Grinder Duty -1.0 to 1.0, e.g., G-0.75)");
+  Serial.println("  G-<amps>          (Grinder Current 0.0-2.0A, e.g., G-1.5)"); // <-- Updated Help
   Serial.println("  P-<vol>-<rate>    (Pump Volume[mL] & Rate[mL/s], e.g., P-100-2.5)");
   Serial.println("  H-<power%>        (Heater Power 0-100%, e.g., H-80)");
   Serial.println("  S-<id>-<time_sec> (Servo ID [A-D] run duration, e.g., S-A-5)");
@@ -1039,61 +706,22 @@ void setup() {
 // --- Arduino Loop ---
 // ==========================================================
 void loop() {
-
 #ifdef WEB_MODE
-  server.handleClient(); // Handle incoming web client requests
+  server.handleClient();
   // MDNS.update(); // Call if using mDNS
-#endif // WEB_MODE
+#endif
 
 // Process Serial Input only if SERIAL_MODE is defined OR if WEB_MODE is disabled
+// Note: Your code currently has WEB_MODE defined and SERIAL_MODE commented out
 #if defined(SERIAL_MODE) || !defined(WEB_MODE)
-  // Handle Serial Input (non-blocking)
-  while (Serial.available() > 0) {
-    char c = Serial.read();
-    // Check for end-of-line characters
-    if (c == '\n' || c == '\r') {
-      serialInputBuffer.trim(); // Remove whitespace from received line
-      if (serialInputBuffer.length() > 0) {
-        Serial.println("Received Serial Command: " + serialInputBuffer);
-        // Pre-check queue space before processing
-        int requiredSlots = countValidCommandsInString(serialInputBuffer);
-        int availableSlots = QUEUE_SIZE - queueCount;
-        if (requiredSlots == 0) {
-             Serial.println("No valid commands found in the input string.");
-        } else if (requiredSlots > availableSlots) {
-            // Not enough space
-            Serial.println("Queue full. Required: " + String(requiredSlots) +
-                         ", Available: " + String(availableSlots) + ". Command rejected.");
-        } else {
-            // Space available, process and enqueue
-            processAndEnqueueCommands(serialInputBuffer);
-        }
-      }
-      serialInputBuffer = ""; // Clear buffer for next command line
-    } else if (isprint(c) && serialInputBuffer.length() < 200) {
-      // Add printable characters to the buffer (with size limit)
-      serialInputBuffer += c;
-    }
-  }
-#endif // SERIAL_MODE check
+  while (Serial.available() > 0) { char c = Serial.read(); if (c == '\n' || c == '\r') { serialInputBuffer.trim(); if (serialInputBuffer.length() > 0) { Serial.println("Received Serial Command: " + serialInputBuffer); int requiredSlots = countValidCommandsInString(serialInputBuffer); int availableSlots = QUEUE_SIZE - queueCount; if (requiredSlots == 0) { Serial.println("No valid commands."); } else if (requiredSlots > availableSlots) { Serial.println("Queue full. Req: " + String(requiredSlots) + ", Avail: " + String(availableSlots)); } else { processAndEnqueueCommands(serialInputBuffer); } } serialInputBuffer = ""; } else if (isprint(c) && serialInputBuffer.length() < 200) { serialInputBuffer += c; } }
+#endif
 
-  // --- Continuous Operations ---
-  // These functions handle ongoing tasks like ramping motors, controlling pump PID,
-  // managing servo movements, etc. They should be non-blocking.
-  updateVescControl();      // Update VESC ramping and send commands
-  updateWaterPump();        // Update pump PID control and volume check if active
-  // Update ALL Servo States (handles periodic motion and stopping)
-  updateServo(servoAState);
-  updateServo(servoBState);
-  updateServo(servoCState);
-  updateServo(servoDState);
-
-  // --- Command Queue Execution ---
-  executeCommandFromQueue(); // Process one command from the queue if ready and no delay
-
-  // --- Safety Checks ---
-  checkSafetyFeatures();    // Check heater timeouts etc.
-
-  // Yield allows background tasks (like WiFi, background OS tasks) to run - Important!
-  yield();
+  updateVescControl(); // Handles VESC commands (Current for VESC1, RPM for VESC2)
+  updateWaterPump();   // Handles pump PID control, volume check, tick printing
+  // Update servo states (periodic motion, stopping)
+  updateServo(servoAState); updateServo(servoBState); updateServo(servoCState); updateServo(servoDState);
+  executeCommandFromQueue(); // Execute next command if available
+  checkSafetyFeatures();     // Run safety checks
+  yield();                   // Allow background tasks
 }

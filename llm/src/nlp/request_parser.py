@@ -220,6 +220,7 @@ class CoffeeRequestParser:
 
         # Default to drip coffee if no strong inference
         return 'drip'
+    
 
 def main():
     parser = CoffeeRequestParser()

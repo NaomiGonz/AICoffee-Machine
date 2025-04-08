@@ -18,7 +18,7 @@ import pytz
 # Firebase Setup
 # ----------------------
 if not firebase_admin._apps:
-    cred = credentials.Certificate("ai-coffee-20cd0-firebase-adminsdk-fbsvc-08c2fd525a.json")
+    cred = credentials.Certificate("")
     firebase_admin.initialize_app(cred)
 
 db = firestore.client()

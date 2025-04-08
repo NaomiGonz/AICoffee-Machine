@@ -3,7 +3,7 @@
 from openai import OpenAI
 
 # ✅ Hardcoded API Key — be cautious with this in production
-client = OpenAI(api_key="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")
+client = OpenAI(api_key="")
 
 def call_gpt_4o(system_prompt: str, user_prompt: str) -> str:
     """

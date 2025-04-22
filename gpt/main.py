@@ -18,7 +18,7 @@ import pytz
 # Firebase Setup
 # ----------------------
 if not firebase_admin._apps:
-    cred = credentials.Certificate("")
+    cred = credentials.Certificate("ai-coffee-20cd0-firebase-adminsdk-fbsvc-08c2fd525a.json")
     firebase_admin.initialize_app(cred)
 
 db = firestore.client()
@@ -32,7 +32,7 @@ def format_command_string(commands):
     """
     return " ".join(commands)
 
-def send_commands_to_machine(commands, machine_ip="10.0.0.245"):
+def send_commands_to_machine(commands, machine_ip="172.20.10.9"):
     """
     Send the commands to the coffee machine
     """
@@ -96,13 +96,13 @@ class FeedbackRequest(BaseModel):
 class BrewExecuteRequest(BaseModel):
     brew_id: str
     user_id: str
-    machine_ip: str = "10.0.0.245"  # Default machine IP
+    machine_ip: str = "172.20.10.9"  # Default machine IP
 
 # ----------------------
 # Brew Route with Auto-Execution
 # ----------------------
 @app.post("/brew")
-async def generate_brew(request: BrewRequest, machine_ip: str = "10.0.0.245"):
+async def generate_brew(request: BrewRequest, machine_ip: str = "172.20.10.9"):
     try:
         # Default beans
         available_beans = [
@@ -203,34 +203,17 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "10.0.0.245"):
 
                 # Command sequence construction
                 commands = [
-                    # Start grinder
-                    f"G-1.5",
-                    
-                    # Initial grinding time
+                    "G-1.5",
                     f"D-{initial_grind_time_ms}",
-                    
-                    # Servo activations (multiple servos if needed)
                     *servo_commands,
-                    
-                    # Delay after mixing
                     f"D-{delay_after_mixing_ms}",
-                    
-                    # Stop grinder
-                    "G-0",
-                    
-                    # Start drum and keep it running
                     f"R-{drum_rpm}",
-                    
-                    # Start heater and keep it running
+                    "D-3000",  # Drum spin-up delay
                     f"H-{heat_power}",
-                    
-                    # Water pumping
+                    "D-100",  # Heater warmup delay
                     f"P-{water_volume_ml}-{flow_rate_mlps}",
-                    
-                    # Final delay to ensure complete water dispensing and additional brewing time
-                    f"D-{final_delay_ms}",
-                    
-                    # Stop components
+                    "R-20000",  # Keep drum running
+                    "D-84000",  # Post-pump delay
                     "H-0",
                     "R-0"
                 ]
@@ -248,7 +231,7 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "10.0.0.245"):
             brew_doc = {
                 "query": request.query,
                 "serving_size": request.serving_size,
-                "timestamp": datetime.datetime.utcnow().isoformat(),
+                "timestamp": datetime.utcnow().isoformat(),
                 "brew_result": personalized
             }
             doc_ref = db.collection("users").document(request.user_id).collection("brews").document()
@@ -416,7 +399,7 @@ async def execute_brew(request: BrewExecuteRequest):
 async def execute_brew_direct(
     user_id: str,
     brew_id: str,
-    machine_ip: str = "10.0.0.245"
+    machine_ip: str = "172.20.10.9"
 ):
     # Create a request object and call the main execution function
     request = BrewExecuteRequest(

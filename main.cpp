@@ -27,9 +27,9 @@ WebServer server(80);
 // ==========================================================
 
 // VESC Control
-// VESC1 = Grinder (Duty Control), VESC2 = Drum (RPM Control)
-const int VESC1_RX_PIN = 12;  // Serial1 RX for GRINDER Motor VESC (Duty)
-const int VESC1_TX_PIN = 13;  // Serial1 TX for GRINDER Motor VESC (Duty)
+// VESC1 = Grinder (RPM Control), VESC2 = Drum (RPM Control)
+const int VESC1_RX_PIN = 12;  // Serial1 RX for GRINDER Motor VESC (RPM)
+const int VESC1_TX_PIN = 13;  // Serial1 TX for GRINDER Motor VESC (RPM)
 const int VESC2_RX_PIN = 16;  // Serial2 RX for DRUM Motor VESC (RPM)
 const int VESC2_TX_PIN = 17;  // Serial2 TX for DRUM Motor VESC (RPM)
 
@@ -64,11 +64,9 @@ enum PWMLedcChannels {
   HEATER_LEDC_CHANNEL = 5  // LEDC Channel for Heater
 };
 
-// VESC Configuration (VESC1=Grinder/Duty, VESC2=Drum/RPM)
-#define RPM_STEP_SIZE          7.0f   // Drum motor RPM step
-#define RPM_STEP_INTERVAL_US   100UL  // Drum motor step interval (micros)
-#define DUTY_STEP_SIZE         0.001f // Grinder motor Duty step
-#define DUTY_STEP_INTERVAL_US  500UL  // Grinder motor step interval (micros)
+// VESC Configuration (VESC1=Grinder/RPM, VESC2=Drum/RPM)
+#define RPM_STEP_SIZE          7.0f   // RPM step
+#define RPM_STEP_INTERVAL_US   100UL  // motor step interval (micros)
 
 // State machine for water pump control
 enum FlowState { FLOW_IDLE,
@@ -158,15 +156,15 @@ const unsigned long REVERSE_DURATION_MS = (unsigned long)(SERVO_PERIOD_MS * REVE
 // --- Global Variables & Objects ---
 // ==========================================================
 
-// VESC Objects and State (VESC1=Grinder/Duty, VESC2=Drum/RPM)
-VescUart vesc1;                    // Grinder Motor (Duty Control)
-VescUart vesc2;                    // Drum Motor (RPM Control)
-float currentDuty1 = 0.0f;
-float targetDuty1  = 0.0f;
-float currentRpm2 = 0.0f;          // Current RPM for VESC2 (Drum) - used for ramping
-float targetRpm2 = 0.0f;           // Target RPM for VESC2 (Drum)
-uint32_t lastDutyStepTime = 0;
-uint32_t lastRpmStepTime = 0;      // Timer for VESC2 RPM stepping
+// VESC Objects and State (VESC1=Grinder/RPM, VESC2=Drum/RPM)
+VescUart vesc1;                    
+VescUart vesc2;   
+float currentRpm1 = 0.0f;
+float targetRpm1  = 0.0f;
+float currentRpm2 = 0.0f;          
+float targetRpm2 = 0.0f;           
+uint32_t lastRpmStepTime1 = 0;
+uint32_t lastRpmStepTime2 = 0;      
 
 // Servo Objects
 Servo servoA;
@@ -212,7 +210,7 @@ enum CommandType { CMD_R,
                    CMD_INVALID };  
 struct Command {
   CommandType type;
-  float value1 = 0;  // R:RPM, G:Duty, P:Volume(mL), H:Power%, S:Calculated Duration(sec), D:Delay(ms) <-- S value updated
+  float value1 = 0;  // R:RPM, G:RPM, P:Volume(mL), H:Power%, S:Calculated Duration(sec), D:Delay(ms) <-- S value updated
   float value2 = 0;  // P:Flow Rate(mL/s), S: Requested Grams <-- S value updated
   char id = ' ';     // S: Servo ID (A, B, C, D)
 };
@@ -270,15 +268,14 @@ void stepRpm2() {
   }
 }
 
-// Gradually steps the current Duty signal to target Duty for VESC1
-void stepDuty1() {
-  float diff = targetDuty1 - currentDuty1;
-  if (fabs(diff) <= DUTY_STEP_SIZE) {
-    currentDuty1 = targetDuty1;
+// Gradually steps the current RPM signal to target RPM for VESC1
+void stepRpm1() {
+  float diff = targetRpm1 - currentRpm1;
+  if (fabs(diff) <= RPM_STEP_SIZE) {
+    currentRpm1 = targetRpm1;  // Snap to target if close enough
   } else {
-    currentDuty1 += (diff > 0 ? DUTY_STEP_SIZE : -DUTY_STEP_SIZE);
+    currentRpm1 += (diff > 0 ? RPM_STEP_SIZE : -RPM_STEP_SIZE);  
   }
-   currentDuty1 = constrain(currentDuty1, -0.12f, 0.12); // Ensure duty stays within bounds
 }
 
 
@@ -302,12 +299,9 @@ Command parseToken(const String& token) {
       cmd.type = CMD_R;
       cmd.value1 = params.toFloat();
       break;
-    case 'G':  // G-<amps> (Grinder Duty)
+    case 'G':  // G-<rpm> (Grinder RPM)
       cmd.type = CMD_G;
       cmd.value1 = params.toFloat();
-      if (cmd.value1 < -0.12 || cmd.value1 > 0.12) {
-        Serial.println("Warning: Grinder Duty " + String(cmd.value1) + " Duty out of range (-0.12 to 0.12). Clamping will occur.");
-      }
       break;
     case 'P': // P-<volume>-<rate>
       {
@@ -522,7 +516,7 @@ void handleCommand() {
 void handleStatus() {
   String status = "--- VESC Status ---\n";
   // VESC1 = Grinder (Current), VESC2 = Drum (RPM)
-  status += "Grinder (Duty): Target=" + String(targetDuty1, 2) + ", Current=" + String(currentDuty1, 2) + "\n";
+  status += "Grinder (RPM): Target=" + String(targetRpm1) + ", Current=" + String(currentRpm1, 0) + "\n";
   status += "Drum (RPM): Target=" + String(targetRpm2) + ", Current=" + String(currentRpm2, 0) + "\n";
   status += "--- Water Pump Status (Kalman/PID) ---\n";
   status += "State: " + String(currentFlowState == FLOW_DISPENSING ? "DISPENSING" : "IDLE") + "\n";
@@ -690,10 +684,8 @@ void executeCommandFromQueue() {
         break;
 
       case CMD_G:
-        Serial.println(String(cmd.value1, 2));
-        if (cmd.value1 < -0.12 || cmd.value1 > 0.12) {
-          Serial.println("Warning: Duty cycle " + String(cmd.value1) + " out of range (-0.12 to 0.12). Clamping may occur.");
-        }
+        Serial.println(String(cmd.value1));
+        targetRpm1 = cmd.value1;
         break;
 
       case CMD_P:
@@ -780,15 +772,15 @@ void executeCommandFromQueue() {
 // Updates VESC control signals
 void updateVescControl() {
   uint32_t now_us = micros();
-  if ((now_us - lastDutyStepTime) >= DUTY_STEP_INTERVAL_US) {
-    stepDuty1();
-    vesc1.setCurrent(currentDuty1);
-    lastDutyStepTime = now_us;
+  if ((now_us - lastRpmStepTime1) >= RPM_STEP_INTERVAL_US) {
+    stepRpm1();
+    vesc1.setRPM((int32_t)currentRpm1);
+    lastRpmStepTime1 = now_us;
   }
-  if ((now_us - lastRpmStepTime) >= RPM_STEP_INTERVAL_US) {
+  if ((now_us - lastRpmStepTime2) >= RPM_STEP_INTERVAL_US) {
     stepRpm2();
     vesc2.setRPM((int32_t)currentRpm2);
-    lastRpmStepTime = now_us;
+    lastRpmStepTime2 = now_us;
   }
 }
 
@@ -971,7 +963,7 @@ void setup() {
   Serial.println("\n--- System Ready ---");
   Serial.println("Format examples:");
   Serial.println("  R-<rpm>           (Drum RPM, e.g., R-3000)");
-  Serial.println("  G-<duty>          (Grinder Duty -0.12-0.12, e.g., G-0.10)");
+  Serial.println("  G-<rpm>           (Grinder RPM, e.g., R-3000)");
   Serial.println("  P-<vol>-<rate>    (Pump Volume[mL] & Rate[mL/s], e.g., P-100-2.5)");
   Serial.println("                    (Flow rate must be within [" + String(MIN_FLOW_RATE, 1) + " - " + String(MAX_FLOW_RATE, 1) + "] mL/s)");
   Serial.println("  H-<power%>        (Heater Power 0-100%, e.g., H-80)");
@@ -1020,5 +1012,5 @@ void loop() {
 
   yield();
 }
-// End of loop()
+
 // S-C-30 D-30000 R-3600 D-3000 H-50 P-80-3 R-20000 D-5000

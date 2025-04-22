@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import Literal, Optional
+from typing import Literal, Optional, List, Dict, Any
 from llm.prompt_template import build_system_prompt
 from llm.gpt_handler import call_gpt_4o
 from brew.personalize import personalize_brew_parameters
@@ -18,7 +18,7 @@ import pytz
 # Firebase Setup
 # ----------------------
 if not firebase_admin._apps:
-    cred = credentials.Certificate("ai-coffee-20cd0-firebase-adminsdk-fbsvc-08c2fd525a.json")
+    cred = credentials.Certificate("ai-coffee-20cd0-firebase-adminsdk-fbsvc-c77f5b1cd6.json")
     firebase_admin.initialize_app(cred)
 
 db = firestore.client()
@@ -60,6 +60,59 @@ def send_commands_to_machine(commands, machine_ip="172.20.10.9"):
             "success": False,
             "error": str(e)
         }
+
+# ----------------------
+# Bean Configuration Functions
+# ----------------------
+def get_user_bean_configuration(user_id: str) -> List[Dict[str, Any]]:
+    """
+    Fetch the user's bean configuration from Firebase
+    """
+    # Default beans if no configuration is found
+    default_beans = [
+        {"name": "Ethiopian Yirgacheffe", "roast": "Light", "notes": "floral, citrus"},
+        {"name": "Colombian Supremo", "roast": "Medium", "notes": "chocolate, nutty"},
+        {"name": "Brazil Santos", "roast": "Dark", "notes": "chocolate, earthy"}
+    ]
+    
+    try:
+        # Get the user's bean configuration
+        beans_ref = db.collection("users").document(user_id).collection("beans").document("configuration")
+        beans_doc = beans_ref.get()
+        
+        if beans_doc.exists:
+            beans_data = beans_doc.to_dict()
+            if beans_data and "slots" in beans_data and len(beans_data["slots"]) > 0:
+                # Convert bean configuration to match expected format
+                beans = []
+                for bean in beans_data["slots"]:
+                    # Map the frontend roast format (lowercase) to backend format (capitalized)
+                    roast_map = {
+                        "light": "Light",
+                        "medium": "Medium", 
+                        "dark": "Dark"
+                    }
+                    
+                    # Only include beans that have a name
+                    if bean.get("name"):
+                        beans.append({
+                            "name": bean.get("name", ""),
+                            "roast": roast_map.get(bean.get("roast", "medium"), "Medium"),
+                            "notes": bean.get("notes", "")
+                        })
+                
+                # If we have beans with names, return them
+                if len(beans) > 0:
+                    print(f"✅ Found {len(beans)} beans in user configuration")
+                    return beans
+        
+        # If we get here, no valid configuration was found
+        print("⚠️ No valid bean configuration found, using defaults")
+        return default_beans
+        
+    except Exception as e:
+        print(f"❌ Error fetching bean configuration: {str(e)}")
+        return default_beans
 
 # ----------------------
 # FastAPI App
@@ -104,12 +157,12 @@ class BrewExecuteRequest(BaseModel):
 @app.post("/brew")
 async def generate_brew(request: BrewRequest, machine_ip: str = "172.20.10.9"):
     try:
-        # Default beans
-        available_beans = [
-            {"name": "Ethiopian Yirgacheffe", "roast": "Light", "notes": "floral, citrus"},
-            {"name": "Colombian Supremo", "roast": "Medium", "notes": "chocolate, nutty"},
-            {"name": "Brazil Santos", "roast": "Dark", "notes": "chocolate, earthy"}
-        ]
+        # Get user's bean configuration from Firebase
+        available_beans = get_user_bean_configuration(request.user_id)
+        
+        print(f"🫘 Using beans for user {request.user_id}:")
+        for i, bean in enumerate(available_beans):
+            print(f"  Bean {i+1}: {bean['name']} ({bean['roast']})")
         
         # Pull feedback brews
         feedback_brews = []
@@ -188,15 +241,21 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "172.20.10.9"):
 
                 # Bean-specific servo assignments
                 servo_commands = []
-                bean_servo_map = {
-                    "Ethiopian Yirgacheffe": "C",
-                    "Colombian Supremo": "B", 
-                    "Brazil Santos": "A"
-                }
+                
+                # Create a dynamic bean-to-servo mapping based on available beans
+                bean_servo_map = {}
+                
+                # Map available beans to servos A, B, C
+                servo_letters = ["A", "B", "C"]
+                for i, bean in enumerate(available_beans):
+                    if i < len(servo_letters):
+                        bean_servo_map[bean["name"]] = servo_letters[i]
+                
+                # Fallback for any beans not in the map
                 used_servos = set()
 
                 for bean in brew_data.get('beans', []):
-                    servo = bean_servo_map.get(bean['name'], 'B')
+                    servo = bean_servo_map.get(bean['name'], 'B')  # Default to B if not found
                     if servo not in used_servos:
                         servo_commands.append(f"S-{servo}-{servo_mixing_time_sec}")
                         used_servos.add(servo)
@@ -232,7 +291,8 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "172.20.10.9"):
                 "query": request.query,
                 "serving_size": request.serving_size,
                 "timestamp": datetime.utcnow().isoformat(),
-                "brew_result": personalized
+                "brew_result": personalized,
+                "used_beans": available_beans  # Save the actual beans used for this brew
             }
             doc_ref = db.collection("users").document(request.user_id).collection("brews").document()
             brew_id = doc_ref.id
@@ -248,7 +308,7 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "172.20.10.9"):
             # Update the document with execution information
             doc_ref.update({
                 "execution": {
-                    "timestamp": datetime.datetime.utcnow().isoformat(),
+                    "timestamp": datetime.utcnow().isoformat(),
                     "success": execution_result.get("success", False),
                     "machine_ip": machine_ip,
                     "command_string": format_command_string(optimized_commands),
@@ -268,6 +328,21 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "172.20.10.9"):
 
     except Exception as e:
         print("❌ Exception:", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ----------------------
+# Get Available Beans Route
+# ----------------------
+@app.get("/beans/{user_id}")
+async def get_available_beans(user_id: str):
+    """
+    Get the user's configured beans
+    """
+    try:
+        beans = get_user_bean_configuration(user_id)
+        return {"beans": beans}
+    except Exception as e:
+        print(f"❌ Error getting available beans: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
     
 # ----------------------
@@ -374,7 +449,7 @@ async def execute_brew(request: BrewExecuteRequest):
         # Log execution
         brew_ref.update({
             "execution": {
-                "timestamp": datetime.datetime.utcnow().isoformat(),
+                "timestamp": datetime.utcnow().isoformat(),
                 "success": result.get("success", False),
                 "machine_ip": request.machine_ip,
                 "command_string": format_command_string(commands),

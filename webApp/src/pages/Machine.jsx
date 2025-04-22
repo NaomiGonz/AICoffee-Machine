@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import NavBar from "../components/NavBar.jsx";
 import Button from "../components/Button.jsx";
+import { db } from "../tools/firebase.js";
+import { collection, doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
+import { useAuth } from "../tools/AuthProvider.jsx"; // Using your AuthProvider
 
 const Machine = () => {
+  const { currentUser, userLoggedIn } = useAuth();
   const [deviceConnected, setDeviceConnected] = useState(false);
   const [statusMessage, setStatusMessage] = useState("Not connected");
   const [settings, setSettings] = useState({
@@ -10,14 +14,72 @@ const Machine = () => {
     pressure: 9,
     grindSize: 5,
   });
-  const [beanSlots, setBeanSlots] = useState([
+  // Default bean configuration
+  const defaultBeanConfig = [
     { name: "", type: "arabica", roast: "medium", notes: "" },
     { name: "", type: "arabica", roast: "medium", notes: "" },
     { name: "", type: "arabica", roast: "medium", notes: "" },
-    { name: "", type: "arabica", roast: "medium", notes: "" },
-  ]);
+  ];
+  
+  const [beanSlots, setBeanSlots] = useState(defaultBeanConfig);
   const [log, setLog] = useState([]);
   const socketRef = useRef(null);
+
+  // Load beans data from Firestore on component mount
+  useEffect(() => {
+    if (!currentUser || !userLoggedIn) return;
+
+    const beansDocRef = doc(db, "users", currentUser.uid, "beans", "configuration");
+    
+    // First, try to get existing data
+    getDoc(beansDocRef)
+      .then((docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.slots) {
+            setBeanSlots(data.slots);
+            setLog((prev) => [...prev, "Loaded saved bean configuration"]);
+          }
+        } else {
+          // Document doesn't exist, create it with default configuration
+          setDoc(beansDocRef, {
+            slots: defaultBeanConfig,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          })
+            .then(() => {
+              setLog((prev) => [...prev, "Created new bean configuration"]);
+            })
+            .catch((error) => {
+              console.error("Error creating default bean configuration:", error);
+              setLog((prev) => [...prev, `Error creating bean configuration: ${error.message}`]);
+            });
+        }
+      })
+      .catch((error) => {
+        console.error("Error loading bean data:", error);
+        setLog((prev) => [...prev, `Error loading bean data: ${error.message}`]);
+      });
+      
+    // Set up real-time listener for future updates
+    const unsubscribe = onSnapshot(
+      beansDocRef,
+      (doc) => {
+        if (doc.exists()) {
+          const data = doc.data();
+          if (data.slots) {
+            setBeanSlots(data.slots);
+            setLog((prev) => [...prev.slice(-19), "Bean configuration updated"]);
+          }
+        }
+      },
+      (error) => {
+        console.error("Error in beans snapshot listener:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [currentUser, userLoggedIn]);
 
   const handleConnect = () => {
     if (socketRef.current) return;
@@ -57,6 +119,27 @@ const Machine = () => {
     const updated = [...beanSlots];
     updated[index][field] = value;
     setBeanSlots(updated);
+    
+    // Save updated beans to Firestore
+    saveBeanConfiguration(updated);
+  };
+  
+  const saveBeanConfiguration = async (updatedSlots) => {
+    if (!currentUser || !userLoggedIn) {
+      setLog((prev) => [...prev, "Cannot save: User not logged in"]);
+      return;
+    }
+    
+    try {
+      await setDoc(doc(db, "users", currentUser.uid, "beans", "configuration"), {
+        slots: updatedSlots,
+        updatedAt: new Date()
+      });
+      setLog((prev) => [...prev.slice(-19), "Bean configuration saved to cloud"]);
+    } catch (error) {
+      console.error("Error saving bean configuration:", error);
+      setLog((prev) => [...prev, `Error saving bean data: ${error.message}`]);
+    }
   };
 
   const handleManualBrew = () => {
@@ -169,7 +252,7 @@ const Machine = () => {
           <h2 className="text-xl font-semibold text-[var(--color-roast)] mb-4">
             Bean Slots Configuration
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             {beanSlots.map((slot, idx) => (
               <div
                 key={idx}

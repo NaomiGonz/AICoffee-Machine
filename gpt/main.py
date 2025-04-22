@@ -32,7 +32,7 @@ def format_command_string(commands):
     """
     return " ".join(commands)
 
-def send_commands_to_machine(commands, machine_ip="172.20.10.9"):
+def send_commands_to_machine(commands, machine_ip="128.197.180.251"):
     """
     Send the commands to the coffee machine
     """
@@ -149,13 +149,13 @@ class FeedbackRequest(BaseModel):
 class BrewExecuteRequest(BaseModel):
     brew_id: str
     user_id: str
-    machine_ip: str = "172.20.10.9"  # Default machine IP
+    machine_ip: str = "128.197.180.251"  # Default machine IP
 
 # ----------------------
 # Brew Route with Auto-Execution
 # ----------------------
 @app.post("/brew")
-async def generate_brew(request: BrewRequest, machine_ip: str = "172.20.10.9"):
+async def generate_brew(request: BrewRequest, machine_ip: str = "128.197.180.251"):
     try:
         # Get user's bean configuration from Firebase
         available_beans = get_user_bean_configuration(request.user_id)
@@ -203,81 +203,112 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "172.20.10.9"):
             
             # Generate optimized commands matching the logged output
             def generate_optimized_commands(brew_data, cup_size_oz):
-                """
-                Generates an optimized command sequence with scaled parameters
-                """
-                # Precise timing calculations scaled proportionally
-                if cup_size_oz == 3:
-                    initial_grind_time_ms = 3000
-                    servo_mixing_time_sec = 15
-                    delay_after_mixing_ms = 30000
-                    water_volume_ml = 89
-                    flow_rate_mlps = 2.0
-                    pump_time_ms = int((water_volume_ml / flow_rate_mlps) * 1000)
-                    final_delay_ms = max(45000, pump_time_ms + 15000)
-                    drum_rpm = 3600
-                elif cup_size_oz == 7:
-                    initial_grind_time_ms = 6000
-                    servo_mixing_time_sec = 25
-                    delay_after_mixing_ms = 30000
-                    water_volume_ml = 207
-                    flow_rate_mlps = 3.0
-                    pump_time_ms = int((water_volume_ml / flow_rate_mlps) * 1000)
-                    final_delay_ms = max(60000, pump_time_ms + 15000)
-                    drum_rpm = 3300
-                else:  # 10 oz
-                    initial_grind_time_ms = 9000
-                    servo_mixing_time_sec = 35
-                    delay_after_mixing_ms = 30000
-                    water_volume_ml = 296
-                    flow_rate_mlps = 4.0
-                    pump_time_ms = int((water_volume_ml / flow_rate_mlps) * 1000)
-                    final_delay_ms = max(75000, pump_time_ms + 15000)
-                    drum_rpm = 3000
+                    """
+                    Generates an optimized command sequence with scaled parameters
+                    """
+                    # Precise timing calculations scaled proportionally
+                    if cup_size_oz == 3:
+                        servo_mixing_time_sec = 15
+                        water_volume_ml = 89
+                        flow_rate_mlps = max(3.0, 2.5)  # Minimum 2.5 mL/sec
+                        pump_time_ms = int((water_volume_ml / flow_rate_mlps) * 1000)
+                        final_delay_ms = max(45000, pump_time_ms + 15000)
+                        drum_rpm = 3600
+                        grinder_rpm = 5000  # Default mid-range grinder RPM
+                    elif cup_size_oz == 7:
+                        servo_mixing_time_sec = 25
+                        water_volume_ml = 207
+                        flow_rate_mlps = 5.0  # Mid-range flow rate
+                        pump_time_ms = int((water_volume_ml / flow_rate_mlps) * 1000)
+                        final_delay_ms = max(60000, pump_time_ms + 15000)
+                        drum_rpm = 3300
+                        grinder_rpm = 6000  # Higher RPM for medium cup
+                    else:  # 10 oz
+                        servo_mixing_time_sec = 35
+                        water_volume_ml = 296
+                        flow_rate_mlps = min(7.0, 8.0)  # Maximum 8.0 mL/sec
+                        pump_time_ms = int((water_volume_ml / flow_rate_mlps) * 1000)
+                        final_delay_ms = max(75000, pump_time_ms + 15000)
+                        drum_rpm = 3000
+                        grinder_rpm = 7000  # Higher RPM for larger cup
 
-                # Temperature-based heat power calculation
-                temperature_c = brew_data.get('water_temperature_c', 96)
-                heat_power = min(max(int((temperature_c - 88) * (30/8) + 70), 0), 100)
+                    # Adjust grinder RPM based on brew strength
+                    brew_type = brew_data.get('coffee_type', 'pour_over').lower()
+                    if 'espresso' in brew_type or 'latte' in brew_type:
+                        grinder_rpm = 8000  # Higher RPM for espresso-style drinks
+                    elif 'french_press' in brew_type:
+                        grinder_rpm = 3000  # Lower RPM for french press (coarser grind)
 
-                # Bean-specific servo assignments
-                servo_commands = []
-                
-                # Create a dynamic bean-to-servo mapping based on available beans
-                bean_servo_map = {}
-                
-                # Map available beans to servos A, B, C
-                servo_letters = ["A", "B", "C"]
-                for i, bean in enumerate(available_beans):
-                    if i < len(servo_letters):
-                        bean_servo_map[bean["name"]] = servo_letters[i]
-                
-                # Fallback for any beans not in the map
-                used_servos = set()
+                    # Temperature-based heat power calculation with new constraints (50-90 range)
+                    temperature_c = brew_data.get('water_temperature_c', 92)
+                    
+                    # Map temperature to heater power following new rules
+                    if temperature_c >= 94:  # Hot
+                        heat_power = 90  # Maximum allowed power
+                        flow_rate_mlps = min(flow_rate_mlps, 3.5)  # Reduce flow rate for hotter temp
+                    elif temperature_c <= 90:  # Cold
+                        heat_power = 50  # Minimum allowed power
+                        flow_rate_mlps = max(flow_rate_mlps, 6.5)  # Increase flow rate for colder temp
+                    else:  # Medium temperature
+                        heat_power = 70  # Middle of range
+                    
+                    # Ensure flow rate stays within allowed range (2.5-8.0 mL/s)
+                    flow_rate_mlps = max(2.5, min(flow_rate_mlps, 8.0))
 
-                for bean in brew_data.get('beans', []):
-                    servo = bean_servo_map.get(bean['name'], 'B')  # Default to B if not found
-                    if servo not in used_servos:
-                        servo_commands.append(f"S-{servo}-{servo_mixing_time_sec}")
-                        used_servos.add(servo)
+                    # Bean-specific servo assignments
+                    servo_commands = []
+                    
+                    # Create a dynamic bean-to-servo mapping based on available beans
+                    bean_servo_map = {}
+                    
+                    # Map available beans to servos A, B, C
+                    servo_letters = ["A", "B", "C"]
+                    for i, bean in enumerate(available_beans):
+                        if i < len(servo_letters):
+                            bean_servo_map[bean["name"]] = servo_letters[i]
+                    
+                    # Fallback for any beans not in the map
+                    used_servos = []
 
-                # Command sequence construction
-                commands = [
-                    "G-1.5",
-                    f"D-{initial_grind_time_ms}",
-                    *servo_commands,
-                    f"D-{delay_after_mixing_ms}",
-                    f"R-{drum_rpm}",
-                    "D-3000",  # Drum spin-up delay
-                    f"H-{heat_power}",
-                    "D-100",  # Heater warmup delay
-                    f"P-{water_volume_ml}-{flow_rate_mlps}",
-                    "R-20000",  # Keep drum running
-                    "D-84000",  # Post-pump delay
-                    "H-0",
-                    "R-0"
-                ]
+                    # Calculate each bean's dispensing time based on its weight and 0.61 g/sec rate
+                    for bean in brew_data.get('beans', []):
+                        servo = bean_servo_map.get(bean['name'], 'B')  # Default to B if not found
+                        # Calculate dispense time based on 0.61 g/sec rate
+                        amount_g = bean.get('amount_g', 10)  # Default to 10g if not specified
+                        dispense_time_sec = round(amount_g / 0.61, 1)
+                        servo_commands.append((servo, dispense_time_sec))
+                        used_servos.append(servo)
 
-                return commands
+                    # Command sequence construction with the new requirements
+                    commands = [
+                        f"G-{grinder_rpm}",  # Set grinder RPM (range: 1500-10000)
+                        "D-5000",  # Run grinder for 5 seconds before servos
+                    ]
+                    
+                    # Add each servo command with its calculated dispense time
+                    for servo, time_sec in servo_commands:
+                        commands.append(f"S-{servo}-{time_sec}")
+                        # Calculate delay based on the servo value multiplied by 0.61
+                        # Example: S-A-11.5 would have a delay of 11.5 * 0.61 seconds
+                        delay_sec = time_sec * 0.61
+                        commands.append(f"D-{int(delay_sec * 1000)}")  # Convert to milliseconds
+                    
+                    # Continue the command sequence
+                    commands.extend([
+                        "D-5000",  # Keep grinder on for 5 seconds after servos
+                        "G-0",     # Turn off grinder
+                        f"R-{drum_rpm}",  # Drum rotation speed
+                        "D-3000",  # Drum spin-up delay
+                        f"H-{heat_power}",  # Heater power (range: 50-90)
+                        "D-100",   # Heater warmup delay
+                        f"P-{water_volume_ml}-{flow_rate_mlps}",  # Water pump with updated flow rate
+                        "R-20000", # Keep drum running
+                        "D-84000", # Post-pump delay
+                        "H-0",     # Turn off heater
+                        "R-0"      # Turn off drum
+                    ])
+
+                    return commands
             
             # Generate the optimized command sequence
             optimized_commands = generate_optimized_commands(brew_json, request.serving_size)
@@ -474,7 +505,7 @@ async def execute_brew(request: BrewExecuteRequest):
 async def execute_brew_direct(
     user_id: str,
     brew_id: str,
-    machine_ip: str = "172.20.10.9"
+    machine_ip: str = "128.197.180.251"
 ):
     # Create a request object and call the main execution function
     request = BrewExecuteRequest(

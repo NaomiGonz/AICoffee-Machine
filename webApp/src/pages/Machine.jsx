@@ -84,7 +84,7 @@ const Machine = () => {
   const handleConnect = () => {
     if (socketRef.current) return;
 
-    const ws = new WebSocket("ws://192.168.4.1:81"); // Use your ESP32 WebSocket IP and port
+    const ws = new WebSocket("ws://128.197.180.251"); // Use your ESP32 WebSocket IP and port
 
     ws.onopen = () => {
       setDeviceConnected(true);

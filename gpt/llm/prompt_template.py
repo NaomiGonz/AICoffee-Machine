@@ -105,24 +105,14 @@ def build_system_prompt(available_beans, feedback_brews=None):
     water_amount = cup_size_oz * 30  # Approx 30ml of water per ounce
     total_bean_weight = water_amount * bean_weight_per_oz  # Total beans in grams
 
-    # Dynamic calculation of bean percentages based on user preferences
-    bean_percentages = {
-        "Colombian Supremo": 0.5,
-        "Brazil Santos": 0.5
-    }
-
+    # Calculate bean weights with specific weights rather than percentages
+    colombian_weight = round(total_bean_weight * 0.5, 2)
+    brazil_weight = round(total_bean_weight * 0.5, 2)
+    
     if "earthy" in user_pref_summary or "chocolate" in user_pref_summary:
-        # Adjust bean mix if earthy or chocolate notes are preferred
-        bean_percentages = {
-            "Colombian Supremo": 0.4,
-            "Brazil Santos": 0.6
-        }
-
-    # Calculate the amount of each bean dynamically based on the user's preferences
-    beans_with_weights = {
-        bean: round(total_bean_weight * percent, 2) 
-        for bean, percent in bean_percentages.items()
-    }
+        # Adjust bean weights if earthy or chocolate notes are preferred
+        colombian_weight = round(total_bean_weight * 0.4, 2)
+        brazil_weight = round(total_bean_weight * 0.6, 2)
 
     # Determine grind size based on user strength preference
     grind_size = "G-75"  # Default grind size for normal brew
@@ -132,26 +122,40 @@ def build_system_prompt(available_beans, feedback_brews=None):
     
     # Calculate expected water volume and flow rate
     water_volume_ml = water_amount  # Water volume in ml
-    flow_rate_mlps = 3.0  # Default flow rate in ml/s
+    flow_rate_mlps = 5.0  # Default flow rate in ml/s (midpoint between 2.5 and 8.0)
     
-    # Adjust flow rate based on brew strength
+    # Adjust flow rate based on brew strength (keeping within 2.5-8.0 mL/s range)
     if brew_strength == "strong":
-        flow_rate_mlps = 2.0  # Slower for stronger extraction
+        flow_rate_mlps = 2.5  # Minimum rate (2.5 mL/s) for stronger extraction
     elif brew_strength == "mild":
-        flow_rate_mlps = 4.0  # Faster for lighter extraction
+        flow_rate_mlps = 8.0  # Maximum rate (8.0 mL/s) for lighter extraction
+    
+    # Calculate bean dispensing time based on 0.61 grams/sec rate
+    colombian_dispense_time = round(colombian_weight / 0.61, 1)
+    brazil_dispense_time = round(brazil_weight / 0.61, 1)
     
     # Calculate expected delays and brew times
-    grind_delay_ms = 3000  # Default grinding time
+    grinder_rpm = 5000  # Default grinder RPM (midpoint between 1500 and 10000)
     mixing_time_sec = 30   # Default servo mixing time
     heating_power = int((temperature - 88) * (30/8) + 70)  # Maps 88°C->70%, 96°C->100% 
 
-    # Adjust delays based on cup size
+    # Calculate expected delays and brew times
+    grinder_rpm = 5000  # Default grinder RPM (midpoint between 1500 and 10000)
+    
+    # Adjust grinder RPM based on brew strength
+    if brew_strength == "strong":
+        grinder_rpm = 8000  # Higher RPM for finer grind
+    elif brew_strength == "mild":
+        grinder_rpm = 3000  # Lower RPM for coarser grind
+
+    # Calculate grind delay based on bean weight and RPM
+    grind_delay_ms = int(total_bean_weight * 200)  # Rough estimate: 200ms per gram
+    
+    # Adjust grind delay based on cup size
     if cup_size_oz == 3:
-        grind_delay_ms = 2000
-        mixing_time_sec = 20
+        grind_delay_ms = int(grind_delay_ms * 0.7)  # Less time for small cup
     elif cup_size_oz == 10:
-        grind_delay_ms = 5000
-        mixing_time_sec = 35
+        grind_delay_ms = int(grind_delay_ms * 1.3)  # More time for large cup
 
     # Generate the system prompt with dynamic values
     return f"""
@@ -162,8 +166,8 @@ Follow these rules:
 1. Only select from the following available beans:
 {beans_str}{preference_hint}
 
-2. Mix up to 3 of these beans with flexible percentages that sum to 100%.
-   - Example: 50% Colombian Supremo + 50% Brazil Santos, or 70% Colombian Supremo + 30% Brazil Santos.
+2. Mix up to 3 of these beans with specific gram amounts based on desired flavor profile.
+   - Example: {colombian_weight}g Colombian Supremo + {brazil_weight}g Brazil Santos
 
 3. Do not mention or use any beans not listed above.
 
@@ -199,27 +203,30 @@ When all information is available, output strictly in this JSON format:
       "name": "{preferred_bean}",
       "roast": "Light|Medium|Dark",
       "notes": "string",
-      "amount_g": {beans_with_weights.get("Colombian Supremo", 0)}  # Adjusted bean amount
+      "amount_g": {colombian_weight}
     }},
     {{
       "name": "Brazil Santos",
       "roast": "Dark",
       "notes": "chocolate, earthy",
-      "amount_g": {beans_with_weights.get("Brazil Santos", 0)}  # Adjusted bean amount
+      "amount_g": {brazil_weight}
     }}
   ],
   "water_temperature_c": {temperature},
   "water_pressure_bar": {pressure},
   "machine_code": {{
     "commands": [
-      "G-1.5",  # Grinder motor current (0.0-2.0 Amps)
-      "D-{grind_delay_ms}",  # Delay for grinding (milliseconds)
-      "S-B-{mixing_time_sec}",  # Servo B for bean mixing (seconds)
-      "D-{mixing_time_sec * 1000}",  # Delay for mixing (milliseconds)
+      "G-{grinder_rpm}",  # Grinder RPM (range: 1500-10000)
+      "D-5000",  # Run grinder for 5 seconds before servos
+      "S-A-{colombian_dispense_time}",  # Servo A for first bean (time based on 0.61g/sec)
+      "D-{int(colombian_dispense_time * 1000)}",  # Delay for dispensing first bean (milliseconds)
+      "S-B-{brazil_dispense_time}",  # Servo B for second bean (time based on 0.61g/sec)
+      "D-{int(brazil_dispense_time * 1000)}",  # Delay for dispensing second bean (milliseconds)
+      "D-5000",  # Keep grinder on for 5 seconds after servos
       "G-0",  # Turn off grinder
       "R-3600",  # Drum rotation speed (RPM)
       "D-5000",  # Delay for drum to reach speed (milliseconds)
-      "H-{heating_power}",  # Heater power (%)
+      "H-{heating_power}",  # Heater power (%) - range 50-90
       "P-{water_volume_ml}-{flow_rate_mlps}",  # Water pump (volume-rate)
       "D-20000",  # Brewing delay (milliseconds)
       "R-0"   # Turn off drum
@@ -229,20 +236,21 @@ When all information is available, output strictly in this JSON format:
 
 The machine_code.commands array must include serial commands in this specific format:
 
-- Grinder current: "G-<amps>" (e.g., G-1.5) - Valid range: 0.0 to 2.0 Amps
+- Grinder RPM: "G-<rpm>" (e.g., G-5000) - Valid range: 1500 to 10000 RPM
 - Drum rotation: "R-<rpm>" (e.g., R-3600) - Typical range: 0 to 4000 RPM
-- Heater power: "H-<power%>" (e.g., H-85) - Range: 0 to 100%
-- Water pump: "P-<volume>-<rate>" (e.g., P-50-3) - Volume in mL, Rate in mL/s
-- Servo control: "S-<id>-<time_sec>" (e.g., S-B-30) - ID: A-D, Time in seconds
+- Heater power: "H-<power%>" (e.g., H-70) - Range: 50 to 90%
+- Water pump: "P-<volume>-<rate>" (e.g., P-50-3) - Volume in mL, Rate in mL/s (range: 2.5 to 8.0 mL/s)
+- Servo control: "S-<id>-<time_sec>" (e.g., S-A-10) - ID: A-D, Time in seconds
+  (Servos dispense beans at 0.61 grams/second)
 - Delay: "D-<ms>" (e.g., D-3000) - Time in milliseconds
 
 You can repeat commands and add delays as needed, but follow this general sequence:
-1. Start grinding (G command)
-2. Delay for grinding (D command)
-3. Optional mixing (S command)
-4. Delay for mixing (D command)
+1. Start grinder (G command)
+2. Wait 5 seconds
+3. Run each servo (bean) one at a time with delays between
+4. Wait 5 seconds after servos finish
 5. Turn off grinder (G-0)
-6. Start drum (R command)
+6. Start drum rotation (R command)
 7. Delay for drum speed (D command)
 8. Turn on heater (H command)
 9. Pump water (P command)
@@ -250,10 +258,10 @@ You can repeat commands and add delays as needed, but follow this general sequen
 11. Turn off heater (H-0) - Note: Not needed if only turning off drum
 12. Turn off drum (R-0)
 
-Match water_temperature_c with heater power:  
-- 88°C → ~70% power  
-- 92°C → ~85% power
-- 96°C → ~100% power  
+Match water_temperature_c with heater power and flow rate:  
+- For hot (94-96°C) water → H-90 power with lower flow rate (2.5-3.5 mL/s)
+- For medium (91-93°C) water → H-70 power with medium flow rate
+- For cold (88-90°C) water → H-50 power with higher flow rate (6.5-8.0 mL/s)
 
 For cup size to water volume mapping:  
 - 3 oz → ~88 mL  

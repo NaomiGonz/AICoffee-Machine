@@ -180,7 +180,7 @@ const Machine = () => {
           Machine Control Center
         </h1>
 
-        <section className="mb-8 space-y-4">
+        {/*<section className="mb-8 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-lg font-medium text-[var(--color-espresso)]">
               Status: {statusMessage}
@@ -246,7 +246,7 @@ const Machine = () => {
               color="#386150"
             />
           </div>
-        </section>
+        </section>*/}
 
         <section className="mb-12">
           <h2 className="text-xl font-semibold text-[var(--color-roast)] mb-4">
@@ -297,7 +297,11 @@ const Machine = () => {
           </div>
         </section>
 
-        <section>
+        <div>
+          <p>Updates data automatically</p>
+        </div>
+
+        {/*<section>
           <h2 className="text-xl font-semibold text-[var(--color-roast)] mb-2">
             Live Log
           </h2>
@@ -308,7 +312,7 @@ const Machine = () => {
               log.map((entry, idx) => <p key={idx}>• {entry}</p>)
             )}
           </div>
-        </section>
+        </section>*/}
       </div>
     </div>
   );

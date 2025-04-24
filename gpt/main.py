@@ -282,7 +282,7 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "128.197.180.251
                     # Command sequence construction with the new requirements
                     commands = [
                         f"G-{grinder_rpm}",  # Set grinder RPM (range: 1500-10000)
-                        "D-5000",  # Run grinder for 5 seconds before servos
+                        "D-25000",  # Run grinder for 5 seconds before servos
                     ]
                     
                     # Add each servo command with its calculated dispense time
@@ -295,7 +295,7 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "128.197.180.251
                     
                     # Continue the command sequence
                     commands.extend([
-                        "D-5000",  # Keep grinder on for 5 seconds after servos
+                        "D-25000",  # Keep grinder on for 5 seconds after servos
                         "G-0",     # Turn off grinder
                         f"R-{drum_rpm}",  # Drum rotation speed
                         "D-3000",  # Drum spin-up delay

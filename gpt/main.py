@@ -290,7 +290,7 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "128.197.180.251
                         commands.append(f"S-{servo}-{time_sec}")
                         # Calculate delay based on the servo value multiplied by 0.61
                         # Example: S-A-11.5 would have a delay of 11.5 * 0.61 seconds
-                        delay_sec = 2 * (time_sec * 0.61)
+                        delay_sec = 4 * (time_sec * 0.61)
                         commands.append(f"D-{int(delay_sec * 1000)}")  # Convert to milliseconds
                     
                     # Continue the command sequence

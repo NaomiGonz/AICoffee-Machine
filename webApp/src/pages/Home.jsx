@@ -324,10 +324,17 @@ const Home = () => {
                   <input
                     id="coffee-query"
                     type="text"
+                    autoComplete="off"
                     className="w-full px-3 py-2 md:px-4 md:py-3 rounded-md border border-gray-300 focus:ring-[var(--color-hgreen)] focus:border-[var(--color-hgreen)] text-base"
                     placeholder="How would you like your coffee?"
                     value={queryInput}
                     onChange={(e) => setQueryInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault(); // prevent accidental form submits
+                        handleNaturalLanguageQuery();
+                      }
+                    }}
                   />
                   <div className="flex gap-2">
                     <button
@@ -339,7 +346,12 @@ const Home = () => {
                     </button>
                     <button
                       onClick={() => setShowExamples(!showExamples)}
-                      className="px-3 py-2 md:py-3 border border-gray-300 text-sm md:text-base font-medium rounded-md shadow-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-hgreen)]"
+                      disabled={isLoading || isSendingToMachine}
+                      className={`px-3 py-2 md:py-3 border text-sm md:text-base font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-hgreen)] ${
+                        isLoading || isSendingToMachine
+                          ? "bg-gray-200 text-gray-400 cursor-not-allowed border-gray-300"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                      }`}
                     >
                       Examples
                     </button>

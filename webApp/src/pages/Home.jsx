@@ -3,6 +3,7 @@ import { getAuth } from "firebase/auth";
 import NavBar from "../components/NavBar.jsx";
 import CoffeeCard from "../components/CoffeeCard.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
+import MachineCodeVisualization from "../components/MachineCodeVisualization";
 
 import col from "../assets/col.jpeg";
 import eth from "../assets/eth.webp";
@@ -39,6 +40,7 @@ const Home = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedBrewId, setSelectedBrewId] = useState(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [showRawCommands, setShowRawCommands] = useState(false);
 
   const auth = getAuth();
   const user = auth.currentUser;
@@ -255,193 +257,248 @@ const Home = () => {
   return (
     <div className="min-h-screen w-full bg-[var(--color-mint)]">
       <NavBar />
-      <main className="pt-16 md:pt-24 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 space-y-6 md:space-y-12">
-        {/* Brew Request Section */}
-        <section className="bg-white rounded-lg shadow-md p-4 md:p-6">
-          <h2 className="text-2xl md:text-3xl font-extrabold text-[var(--color-roast)] mb-4 md:mb-6 tracking-tight">
-            Craft Your Perfect Cup
-          </h2>
-          <div className="mb-4">
-            <ServingSizeSelector />
-            <label htmlFor="coffee-query" className="block text-sm font-medium text-gray-700 mb-2">
-              Tell us what kind of coffee you want
-            </label>
-            <div className="flex flex-col gap-2">
-              <input
-                id="coffee-query"
-                type="text"
-                className="w-full px-3 py-2 md:px-4 md:py-3 rounded-md border border-gray-300 focus:ring-[var(--color-hgreen)] focus:border-[var(--color-hgreen)] text-base"
-                placeholder="How would you like your coffee?"
-                value={queryInput}
-                onChange={(e) => setQueryInput(e.target.value)}
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleNaturalLanguageQuery()}
-                  disabled={isLoading}
-                  className="flex-1 px-4 py-2 md:py-3 border border-transparent text-sm md:text-base font-medium rounded-md shadow-sm text-white bg-[var(--color-hgreen)] hover:bg-[var(--color-roast)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-hgreen)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isLoading ? "Brewing..." : "Brew Coffee"}
-                </button>
-                <button
-                  onClick={() => setShowExamples(!showExamples)}
-                  className="px-3 py-2 md:py-3 border border-gray-300 text-sm md:text-base font-medium rounded-md shadow-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-hgreen)]"
-                >
-                  Examples
-                </button>
-              </div>
-              {errorMessage && (
-                <p className="text-red-500 text-sm mt-2">{errorMessage}</p>
-              )}
-            </div>
-            {showExamples && (
-              <div className="mt-2 mb-3 bg-gray-50 p-3 rounded-md">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Try one of these:</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {exampleQueries.map((example, idx) => (
+      <main className="pt-16 md:pt-24 max-w-7xl mx-auto px-1 sm:px-2 space-y-6 md:space-y-8">
+        {/* Two-column layout for main content */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 lg:gap-4">
+          {/* Left column for brew sections - takes 3/4 of the space */}
+          <div className="lg:col-span-3 space-y-4">
+            {/* Brew Request Section */}
+            <section className="bg-white rounded-lg shadow-md p-3 md:p-4">
+              <h2 className="text-xl md:text-2xl font-bold text-[var(--color-roast)] mb-3 md:mb-4 tracking-tight">
+                Craft Your Perfect Cup
+              </h2>
+              <div className="mb-4">
+                <ServingSizeSelector />
+                <label htmlFor="coffee-query" className="block text-sm font-medium text-gray-700 mb-2">
+                  Tell us what kind of coffee you want
+                </label>
+                <div className="flex flex-col gap-2">
+                  <input
+                    id="coffee-query"
+                    type="text"
+                    className="w-full px-3 py-2 md:px-4 md:py-3 rounded-md border border-gray-300 focus:ring-[var(--color-hgreen)] focus:border-[var(--color-hgreen)] text-base"
+                    placeholder="How would you like your coffee?"
+                    value={queryInput}
+                    onChange={(e) => setQueryInput(e.target.value)}
+                  />
+                  <div className="flex gap-2">
                     <button
-                      key={idx}
-                      onClick={() => handleUseExample(example)}
-                      className="text-left px-3 py-2 border border-gray-300 text-xs md:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none truncate"
-                    >
-                      {example}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Brew Result Section */}
-        {brewResult && (
-          <section className="bg-white rounded-lg shadow-md p-4 md:p-6">
-            <h2 className="text-xl md:text-2xl font-bold text-[var(--color-roast)] mb-3 md:mb-4">Your Brew Results</h2>
-            <div className="space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-6">
-              <div className="bg-gray-50 rounded-md p-3">
-                <h3 className="text-md md:text-lg font-medium mb-2">Brew Details</h3>
-                <p className="text-sm text-gray-700 mb-1"><strong>Temperature:</strong> {brewResult.water_temperature_c}°C</p>
-                <p className="text-sm text-gray-700 mb-1"><strong>Pressure:</strong> {brewResult.water_pressure_bar} bar</p>
-                <p className="text-sm text-gray-700 mb-1"><strong>Serving Size:</strong> {brewResult.cup_size_oz} oz</p>
-              </div>
-              <div>
-                <h3 className="text-md md:text-lg font-medium mb-2">Beans Used</h3>
-                <ul className="space-y-2">
-                  {brewResult.beans.map((bean, idx) => (
-                    <li key={idx} className="p-2 bg-gray-50 rounded text-sm">
-                      <p className="font-semibold">{bean.name} ({bean.roast})</p>
-                      <p className="text-xs text-gray-600">{bean.notes} — {bean.amount_g}g</p>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-            <div className="mt-4">
-              <h3 className="text-md md:text-lg font-medium mb-2">Machine Commands</h3>
-              <div className="bg-gray-50 rounded-md p-3 text-sm font-mono whitespace-pre-wrap">
-                {brewResult.machine_code?.commands?.join("\n") || "No commands returned."}
-              </div>
-            </div>
-            <div className="mt-4 flex justify-between items-center">
-              <button
-                onClick={() => {
-                  setSelectedBrewId(brewResult.brew_id);
-                  setShowFeedbackModal(true);
-                }}
-                className="px-4 py-2 text-sm bg-[var(--color-hgreen)] text-white rounded-md hover:bg-[var(--color-roast)]"
-              >
-                Leave Feedback
-              </button>
-              <button
-                onClick={() => setBrewResult(null)}
-                className="text-sm px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-              >
-                Close
-              </button>
-            </div>
-          </section>
-        )}
-
-        {/* Brew History Section */}
-        {brewHistory.length > 0 && (
-          <section>
-            <h2 className="text-2xl md:text-3xl font-extrabold text-[var(--color-roast)] mb-4 md:mb-6 tracking-tight">
-              Recent Brews
-            </h2>
-            <div className="space-y-4">
-              {brewHistory.slice(0, 5).map((brew, index) => (
-                <div 
-                  key={brew.brew_id || index} 
-                  className="bg-white rounded-lg shadow-md p-4 flex justify-between items-center"
-                >
-                  <div className="flex-grow">
-                    <div className="flex justify-between items-center">
-                      <p className="text-sm font-medium text-gray-700">
-                        {brew.query || "Custom Brew"}
-                      </p>
-                      <p className="text-xs text-gray-500 ml-2">
-                        {formatTimestamp(brew.timestamp)}
-                      </p>
-                    </div>
-                    {brew.brew_result && (
-                      <div className="text-xs text-gray-600 mt-1 flex items-center">
-                        <span>{brew.brew_result.beans?.[0]?.name || 'Unknown Beans'}</span>
-                        {' • '}
-                        <span>{brew.serving_size} oz</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex space-x-2 ml-4 items-center">
-                    <button
-                      onClick={() => handleExecuteHistoricalBrew(brew.brew_id)}
+                      onClick={() => handleNaturalLanguageQuery()}
                       disabled={isLoading}
-                      className="px-3 py-1.5 text-xs bg-[var(--color-hgreen)] text-white rounded-md hover:bg-[var(--color-roast)] disabled:opacity-50"
+                      className="flex-1 px-4 py-2 md:py-3 border border-transparent text-sm md:text-base font-medium rounded-md shadow-sm text-white bg-[var(--color-hgreen)] hover:bg-[var(--color-roast)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-hgreen)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Brew Again
+                      {isLoading ? "Brewing..." : "Brew Coffee"}
                     </button>
-                    {brew.feedback?.rating ? (
-                      <div className="flex items-center space-x-1 text-xs text-gray-500">
-                        <span>{brew.feedback.rating} ⭐</span>
-                        {brew.feedback.notes && (
-                          <span 
-                            title={brew.feedback.notes}
-                            className="cursor-help truncate max-w-[100px]"
-                          >
-                            (Notes)
-                          </span>
+                    <button
+                      onClick={() => setShowExamples(!showExamples)}
+                      className="px-3 py-2 md:py-3 border border-gray-300 text-sm md:text-base font-medium rounded-md shadow-sm bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-hgreen)]"
+                    >
+                      Examples
+                    </button>
+                  </div>
+                  {errorMessage && (
+                    <p className="text-red-500 text-sm mt-2">{errorMessage}</p>
+                  )}
+                </div>
+                {showExamples && (
+                  <div className="mt-2 mb-3 bg-gray-50 p-3 rounded-md">
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Try one of these:</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {exampleQueries.map((example, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => handleUseExample(example)}
+                          className="text-left px-3 py-2 border border-gray-300 text-xs md:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none truncate"
+                        >
+                          {example}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Brew Result Section */}
+            {brewResult && (
+              <section className="bg-white rounded-lg shadow-md p-3 md:p-4">
+                <h2 className="text-lg md:text-xl font-bold text-[var(--color-roast)] mb-3">Your Brew Results</h2>
+                <div className="space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-6">
+                  <div className="bg-gray-50 rounded-md p-3">
+                    <h3 className="text-md md:text-lg font-medium mb-2">Brew Details</h3>
+                    <p className="text-sm text-gray-700 mb-1"><strong>Temperature:</strong> {brewResult.water_temperature_c}°C</p>
+                    <p className="text-sm text-gray-700 mb-1"><strong>Pressure:</strong> {brewResult.water_pressure_bar} bar</p>
+                    <p className="text-sm text-gray-700 mb-1"><strong>Serving Size:</strong> {brewResult.cup_size_oz} oz</p>
+                  </div>
+                  <div>
+                    <h3 className="text-md md:text-lg font-medium mb-2">Beans Used</h3>
+                    <ul className="space-y-2">
+                      {brewResult.beans.map((bean, idx) => (
+                        <li key={idx} className="p-2 bg-gray-50 rounded text-sm">
+                          <p className="font-semibold">{bean.name} ({bean.roast})</p>
+                          <p className="text-xs text-gray-600">{bean.notes} — {bean.amount_g}g</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                
+                {/* Brewing Process Visualization */}
+                {brewResult.machine_code && brewResult.machine_code.commands && (
+                  <div className="mt-4">
+                    <MachineCodeVisualization machineCode={brewResult.machine_code} />
+                  </div>
+                )}
+                
+                {/* Machine Commands (Hidden by default, toggleable) */}
+                <div className="mt-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-md md:text-lg font-medium">Technical Details</h3>
+                    <button 
+                      onClick={() => setShowRawCommands(!showRawCommands)} 
+                      className="text-xs px-3 py-1 bg-gray-100 rounded-md hover:bg-gray-200"
+                    >
+                      {showRawCommands ? "Hide Commands" : "Show Commands"}
+                    </button>
+                  </div>
+                  
+                  {showRawCommands && (
+                    <div className="bg-gray-50 rounded-md p-3 text-sm font-mono whitespace-pre-wrap">
+                      {brewResult.machine_code?.commands?.join("\n") || "No commands returned."}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="mt-4 flex justify-between items-center">
+                  <button
+                    onClick={() => {
+                      setSelectedBrewId(brewResult.brew_id);
+                      setShowFeedbackModal(true);
+                    }}
+                    className="px-4 py-2 text-sm bg-[var(--color-hgreen)] text-white rounded-md hover:bg-[var(--color-roast)]"
+                  >
+                    Leave Feedback
+                  </button>
+                  <button
+                    onClick={() => setBrewResult(null)}
+                    className="text-sm px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  >
+                    Close
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {/* Brew History Section */}
+            {brewHistory.length > 0 && (
+              <section>
+                <h2 className="text-xl md:text-2xl font-bold text-[var(--color-roast)] mb-3 md:mb-4 tracking-tight">
+                  Recent Brews
+                </h2>
+                <div className="space-y-4">
+                  {brewHistory.slice(0, 5).map((brew, index) => (
+                    <div 
+                      key={brew.brew_id || index} 
+                      className="bg-white rounded-lg shadow-md p-4 flex justify-between items-center"
+                    >
+                      <div className="flex-grow">
+                        <div className="flex justify-between items-center">
+                          <p className="text-sm font-medium text-gray-700">
+                            {brew.query || "Custom Brew"}
+                          </p>
+                          <p className="text-xs text-gray-500 ml-2">
+                            {formatTimestamp(brew.timestamp)}
+                          </p>
+                        </div>
+                        {brew.brew_result && (
+                          <div className="text-xs text-gray-600 mt-1 flex items-center">
+                            <span>{brew.brew_result.beans?.[0]?.name || 'Unknown Beans'}</span>
+                            {' • '}
+                            <span>{brew.serving_size} oz</span>
+                          </div>
                         )}
                       </div>
-                    ) : (
-                      <div> 
+                      <div className="flex space-x-2 ml-4 items-center">
                         <button
-                          onClick={() => {
-                            setSelectedBrewId(brew.brew_id);
-                            setShowFeedbackModal(true);
-                          }}
-                          className="px-3 py-1.5 text-xs bg-[var(--color-hgreen)] text-white rounded-md hover:bg-[var(--color-roast)]" 
-                        > 
-                          Leave Feedback
-                        </button> </div>
-                    )}
-
-                  </div>
+                          onClick={() => handleExecuteHistoricalBrew(brew.brew_id)}
+                          disabled={isLoading}
+                          className="px-3 py-1.5 text-xs bg-[var(--color-hgreen)] text-white rounded-md hover:bg-[var(--color-roast)] disabled:opacity-50"
+                        >
+                          Brew Again
+                        </button>
+                        {brew.feedback?.rating ? (
+                          <div className="flex items-center space-x-1 text-xs text-gray-500">
+                            <span>{brew.feedback.rating} ⭐</span>
+                            {brew.feedback.notes && (
+                              <span 
+                                title={brew.feedback.notes}
+                                className="cursor-help truncate max-w-[100px]"
+                              >
+                                (Notes)
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div> 
+                            <button
+                              onClick={() => {
+                                setSelectedBrewId(brew.brew_id);
+                                setShowFeedbackModal(true);
+                              }}
+                              className="px-3 py-1.5 text-xs bg-[var(--color-hgreen)] text-white rounded-md hover:bg-[var(--color-roast)]" 
+                            > 
+                              Leave Feedback
+                            </button> 
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Featured Coffees Section */}
-        <section>
-          <h2 className="text-2xl md:text-3xl font-extrabold text-[var(--color-roast)] mb-4 md:mb-6 tracking-tight">Featured Coffees</h2>
-          <div className="overflow-x-auto -mx-3 px-3 pb-2">
-            <div className="flex flex-nowrap gap-3 md:gap-4">
-              {featuredCoffees.map((coffee) => (
-                <CoffeeCard key={coffee.id} {...coffee} />
-              ))}
-            </div>
+              </section>
+            )}
           </div>
-        </section>
+
+          {/* Right column for featured coffees - takes 1/4 of the space */}
+          <div className="lg:col-span-1">
+            <section className="bg-white rounded-lg shadow-md p-4 sticky top-24">
+              <h2 className="text-xl font-bold text-[var(--color-roast)] mb-4 tracking-tight">
+                Featured Coffees
+              </h2>
+              {/* Desktop view - compact vertical list */}
+              <div className="hidden lg:block space-y-3">
+                {featuredCoffees.map((coffee) => (
+                  <button 
+                    key={coffee.id} 
+                    className="w-full flex items-center p-2 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors text-left"
+                    onClick={() => handleUseExample(`${coffee.name} coffee`)}
+                  >
+                    <img 
+                      src={coffee.image} 
+                      alt={coffee.name}
+                      className="w-12 h-12 object-cover rounded-md mr-3" 
+                    />
+                    <div>
+                      <h3 className="font-medium text-sm">{coffee.name}</h3>
+                      <p className="text-xs text-gray-600">{coffee.description}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              
+              {/* Mobile view - horizontal scrolling cards */}
+              <div className="lg:hidden overflow-x-auto -mx-2 px-2">
+                <div className="flex flex-nowrap gap-3 pb-2">
+                  {featuredCoffees.map((coffee) => (
+                    <div key={coffee.id} onClick={() => handleUseExample(`${coffee.name} coffee`)} className="cursor-pointer">
+                      <CoffeeCard {...coffee} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
       </main>
 
       <FeedbackModal

@@ -56,16 +56,26 @@ const Account = () => {
 
   useEffect(() => {
     if (user) {
+      const estOptions = {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      };
+  
       setUserInfo({
         name: user.displayName || "N/A",
         email: user.email,
         uid: user.uid,
-        created: user.metadata.creationTime,
-        lastLogin: user.metadata.lastSignInTime,
+        created: new Date(user.metadata.creationTime).toLocaleString("en-US", estOptions),
+        lastLogin: new Date(user.metadata.lastSignInTime).toLocaleString("en-US", estOptions),
       });
     }
     fetchSavedBrews();
-  }, [uid]);
+  }, [uid]);  
 
   return (
     <div className="min-h-screen bg-[var(--color-mint)]">
@@ -87,7 +97,7 @@ const Account = () => {
           )}
         </section>
 
-        <section>
+        {/* <section>
           <h2 className="text-2xl font-semibold mb-4 text-[var(--color-espresso)]">
             Your Saved Brews
           </h2>
@@ -106,7 +116,7 @@ const Account = () => {
               ))}
             </div>
           )}
-        </section>
+        </section> */}
 
         <section>
           <h2 className="text-2xl font-semibold mb-4 text-[var(--color-espresso)]">Feedback</h2>

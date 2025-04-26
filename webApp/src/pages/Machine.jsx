@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import NavBar from "../components/NavBar.jsx";
 import Button from "../components/Button.jsx";
+import BeanScanner from "../components/BeanScanner.jsx";
 import { db } from "../tools/firebase.js";
 import { collection, doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
-import { useAuth } from "../tools/AuthProvider.jsx"; // Using your AuthProvider
+import { useAuth } from "../tools/AuthProvider.jsx";
 
 const Machine = () => {
   const { currentUser, userLoggedIn } = useAuth();
@@ -14,7 +15,6 @@ const Machine = () => {
     pressure: 9,
     grindSize: 5,
   });
-  // Default bean configuration
   const defaultBeanConfig = [
     { name: "", type: "arabica", roast: "medium", notes: "" },
     { name: "", type: "arabica", roast: "medium", notes: "" },
@@ -24,30 +24,35 @@ const Machine = () => {
   const [beanSlots, setBeanSlots] = useState(defaultBeanConfig);
   const [log, setLog] = useState([]);
   const socketRef = useRef(null);
+  const [activeScanSlot, setActiveScanSlot] = useState(null);
+  const [savingStatus, setSavingStatus] = useState("");
+  const [lastUpdated, setLastUpdated] = useState(null);
 
-  // Load beans data from Firestore on component mount
   useEffect(() => {
     if (!currentUser || !userLoggedIn) return;
 
     const beansDocRef = doc(db, "users", currentUser.uid, "beans", "configuration");
-    
-    // First, try to get existing data
+
     getDoc(beansDocRef)
       .then((docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           if (data.slots) {
             setBeanSlots(data.slots);
+            if (data.updatedAt) {
+              setLastUpdated(data.updatedAt.toDate());
+            }
+            console.log("Loaded saved bean configuration from Firebase");
             setLog((prev) => [...prev, "Loaded saved bean configuration"]);
           }
         } else {
-          // Document doesn't exist, create it with default configuration
           setDoc(beansDocRef, {
             slots: defaultBeanConfig,
             createdAt: new Date(),
             updatedAt: new Date()
           })
             .then(() => {
+              console.log("Created new bean configuration in Firebase");
               setLog((prev) => [...prev, "Created new bean configuration"]);
             })
             .catch((error) => {
@@ -60,8 +65,7 @@ const Machine = () => {
         console.error("Error loading bean data:", error);
         setLog((prev) => [...prev, `Error loading bean data: ${error.message}`]);
       });
-      
-    // Set up real-time listener for future updates
+
     const unsubscribe = onSnapshot(
       beansDocRef,
       (doc) => {
@@ -69,6 +73,10 @@ const Machine = () => {
           const data = doc.data();
           if (data.slots) {
             setBeanSlots(data.slots);
+            if (data.updatedAt) {
+              setLastUpdated(data.updatedAt.toDate());
+            }
+            console.log("Real-time update: Bean configuration changed in Firebase");
             setLog((prev) => [...prev.slice(-19), "Bean configuration updated"]);
           }
         }
@@ -81,10 +89,65 @@ const Machine = () => {
     return () => unsubscribe();
   }, [currentUser, userLoggedIn]);
 
+  const saveBeanConfiguration = async (updatedSlots) => {
+    if (!currentUser || !userLoggedIn) {
+      console.log("Cannot save: User not logged in");
+      setLog((prev) => [...prev, "Cannot save: User not logged in"]);
+      setSavingStatus("Error: Not logged in");
+      return;
+    }
+    
+    try {
+      setSavingStatus("Saving...");
+      console.log("Saving bean configuration to Firebase...");
+      
+      await setDoc(doc(db, "users", currentUser.uid, "beans", "configuration"), {
+        slots: updatedSlots,
+        updatedAt: new Date()
+      });
+
+      setLastUpdated(new Date());
+      
+      console.log("Bean configuration saved successfully");
+      setLog((prev) => [...prev.slice(-19), "Bean configuration saved to cloud"]);
+      setSavingStatus("Saved!");
+      
+      setTimeout(() => {
+        setSavingStatus("");
+      }, 2000);
+    } catch (error) {
+      console.error("Error saving bean configuration:", error);
+      setLog((prev) => [...prev, `Error saving bean data: ${error.message}`]);
+      setSavingStatus(`Error: ${error.message}`);
+    }
+  };
+
+  const updateBeanSlot = (index, field, value) => {
+    console.log(`Updating bean slot ${index}, field: ${field}, value: ${value}`);
+    const updated = [...beanSlots];
+    updated[index][field] = value;
+    setBeanSlots(updated);
+    saveBeanConfiguration(updated);
+  };
+  
+  const handleScanComplete = (slotIndex, beanInfo) => {
+    console.log(`Scan completed for slot ${slotIndex}:`, beanInfo);
+    const slotArrayIndex = slotIndex - 1;
+    const updated = [...beanSlots];
+    updated[slotArrayIndex] = {
+      ...updated[slotArrayIndex],
+      ...beanInfo
+    };
+    setBeanSlots(updated);
+    saveBeanConfiguration(updated);
+    setActiveScanSlot(null);
+    setLog((prev) => [...prev.slice(-19), `📷 Scanned bean info for slot ${slotIndex}: ${beanInfo.name}`]);
+  };
+
   const handleConnect = () => {
     if (socketRef.current) return;
 
-    const ws = new WebSocket("ws://128.197.180.251"); // Use your ESP32 WebSocket IP and port
+    const ws = new WebSocket("ws://128.197.180.251");
 
     ws.onopen = () => {
       setDeviceConnected(true);
@@ -113,33 +176,6 @@ const Machine = () => {
 
   const updateSetting = (key, value) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const updateBeanSlot = (index, field, value) => {
-    const updated = [...beanSlots];
-    updated[index][field] = value;
-    setBeanSlots(updated);
-    
-    // Save updated beans to Firestore
-    saveBeanConfiguration(updated);
-  };
-  
-  const saveBeanConfiguration = async (updatedSlots) => {
-    if (!currentUser || !userLoggedIn) {
-      setLog((prev) => [...prev, "Cannot save: User not logged in"]);
-      return;
-    }
-    
-    try {
-      await setDoc(doc(db, "users", currentUser.uid, "beans", "configuration"), {
-        slots: updatedSlots,
-        updatedAt: new Date()
-      });
-      setLog((prev) => [...prev.slice(-19), "Bean configuration saved to cloud"]);
-    } catch (error) {
-      console.error("Error saving bean configuration:", error);
-      setLog((prev) => [...prev, `Error saving bean data: ${error.message}`]);
-    }
   };
 
   const handleManualBrew = () => {
@@ -172,6 +208,17 @@ const Machine = () => {
     };
   }, []);
 
+  // Helper function for nicer time format
+  const formatDateTime = (date) => {
+    return date.toLocaleString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
   return (
     <div className="min-h-screen bg-[var(--color-mint)]">
       <NavBar />
@@ -180,90 +227,46 @@ const Machine = () => {
           Machine Control Center
         </h1>
 
-        {/*<section className="mb-8 space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-lg font-medium text-[var(--color-espresso)]">
-              Status: {statusMessage}
-            </p>
-            <Button
-              text={deviceConnected ? "Connected" : "Connect"}
-              onClick={handleConnect}
-              disabled={deviceConnected}
-              color="#386150"
-            />
-          </div>
-        </section>
-
         <section className="mb-8">
-          <h2 className="text-xl font-semibold text-[var(--color-roast)] mb-4">
-            Manual Brew Settings
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-roast)] mb-1">
-                Temperature (°C): {settings.temperature}
-              </label>
-              <input
-                type="range"
-                min="85"
-                max="96"
-                value={settings.temperature}
-                onChange={(e) => updateSetting("temperature", Number(e.target.value))}
-                className="w-full accent-[var(--color-hgreen)]"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-roast)] mb-1">
-                Pressure (bar): {settings.pressure}
-              </label>
-              <input
-                type="range"
-                min="6"
-                max="12"
-                value={settings.pressure}
-                onChange={(e) => updateSetting("pressure", Number(e.target.value))}
-                className="w-full accent-[var(--color-hgreen)]"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-roast)] mb-1">
-                Grind Size: {settings.grindSize}
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="10"
-                value={settings.grindSize}
-                onChange={(e) => updateSetting("grindSize", Number(e.target.value))}
-                className="w-full accent-[var(--color-hgreen)]"
-              />
-            </div>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-[var(--color-roast)]">
+              Bean Slots Configuration
+            </h2>
+            {savingStatus && (
+              <div className="text-sm font-medium px-3 py-1 rounded bg-white">
+                {savingStatus}
+              </div>
+            )}
           </div>
-          <div className="mt-6">
-            <Button
-              text="Start Manual Brew"
-              onClick={handleManualBrew}
-              color="#386150"
-            />
-          </div>
-        </section>*/}
 
-        <section className="mb-12">
-          <h2 className="text-xl font-semibold text-[var(--color-roast)] mb-4">
-            Bean Slots Configuration
-          </h2>
+          {activeScanSlot !== null && (
+            <BeanScanner 
+              onScanComplete={handleScanComplete} 
+              slotIndex={activeScanSlot} 
+              onCancel={() => setActiveScanSlot(null)}
+            />
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             {beanSlots.map((slot, idx) => (
               <div
                 key={idx}
                 className="border border-[var(--color-espresso)] rounded p-4 bg-white shadow-sm"
               >
-                <h3 className="font-semibold text-[var(--color-roast)] mb-2">
-                  Slot {idx + 1}
-                </h3>
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="font-semibold text-[var(--color-roast)]">
+                    Slot {idx + 1}
+                  </h3>
+                  <Button
+                    text="Scan Bag"
+                    onClick={() => setActiveScanSlot(idx + 1)}
+                    color="#386150"
+                    className="text-xs py-1 px-2"
+                  />
+                </div>
                 <input
                   className="w-full mb-2 p-2 border rounded"
-                  placeholder="Bean Name (optional)"
+                  placeholder="Bean Name (scan bag or enter manually)"
                   value={slot.name}
                   onChange={(e) => updateBeanSlot(idx, "name", e.target.value)}
                 />
@@ -288,31 +291,22 @@ const Machine = () => {
                 <textarea
                   className="w-full p-2 border rounded"
                   rows="2"
-                  placeholder="Flavor notes (optional)"
+                  placeholder="Flavor notes (scan bag or enter manually)"
                   value={slot.notes}
                   onChange={(e) => updateBeanSlot(idx, "notes", e.target.value)}
                 />
               </div>
             ))}
           </div>
-        </section>
 
-        <div>
-          <p>Updates data automatically</p>
-        </div>
-
-        {/*<section>
-          <h2 className="text-xl font-semibold text-[var(--color-roast)] mb-2">
-            Live Log
-          </h2>
-          <div className="bg-white border border-[var(--color-espresso)] rounded p-4 max-h-64 overflow-y-auto text-sm text-[var(--color-espresso)] shadow-sm">
-            {log.length === 0 ? (
-              <p className="text-gray-500 italic">No activity yet.</p>
+          <div className="mt-4 text-center text-sm text-gray-600">
+            {lastUpdated ? (
+              <p>Last updated: {formatDateTime(lastUpdated)}</p>
             ) : (
-              log.map((entry, idx) => <p key={idx}>• {entry}</p>)
+              <p>Loading last updated time...</p>
             )}
           </div>
-        </section>*/}
+        </section>
       </div>
     </div>
   );

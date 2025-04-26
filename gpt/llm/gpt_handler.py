@@ -1,9 +1,13 @@
 # llm/gpt_handler.py
 
 from openai import OpenAI
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 # ✅ Hardcoded API Key — be cautious with this in production
-client = OpenAI(api_key="")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def call_gpt_4o(system_prompt: str, user_prompt: str) -> str:
     """

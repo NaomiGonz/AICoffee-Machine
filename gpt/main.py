@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Literal, Optional, List, Dict, Any
 from llm.prompt_template import build_system_prompt
@@ -13,6 +14,13 @@ from datetime import datetime, timezone
 import firebase_admin
 from firebase_admin import credentials, firestore
 import pytz
+import openai
+import os
+import asyncio
+from process_coffee_bag import router as coffee_bag_router
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ----------------------
 # Firebase Setup
@@ -23,8 +31,10 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
 # ----------------------
-# Machine Control Functions
+# Machine Control Functionsß
 # ----------------------
 def format_command_string(commands):
     """
@@ -126,6 +136,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(coffee_bag_router)
 
 # ----------------------
 # Models
@@ -244,13 +256,13 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "128.197.180.251
                     
                     # Map temperature to heater power following new rules
                     if temperature_c >= 94:  # Hot
-                        heat_power = 90  # Maximum allowed power
+                        heat_power = 100  # Maximum allowed power
                         flow_rate_mlps = min(flow_rate_mlps, 3.5)  # Reduce flow rate for hotter temp
                     elif temperature_c <= 90:  # Cold
-                        heat_power = 50  # Minimum allowed power
+                        heat_power = 90  # Minimum allowed power
                         flow_rate_mlps = max(flow_rate_mlps, 6.5)  # Increase flow rate for colder temp
                     else:  # Medium temperature
-                        heat_power = 70  # Middle of range
+                        heat_power = 95  # Middle of range
                     
                     # Ensure flow rate stays within allowed range (2.5-8.0 mL/s)
                     flow_rate_mlps = max(2.5, min(flow_rate_mlps, 8.0))
@@ -514,3 +526,19 @@ async def execute_brew_direct(
         machine_ip=machine_ip
     )
     return await execute_brew(request)
+
+# ----------------------
+# Brew Progress Streaming
+# ----------------------
+
+@app.get("/brew-progress/{brew_id}")
+async def stream_brew_progress(brew_id: str):
+    async def event_generator():
+        progress = 0
+        while progress <= 100:
+            await asyncio.sleep(2)  # simulate brewing step
+            yield f"data: {json.dumps({'progress': progress})}\n\n"
+            progress += 10
+        # After 100%, close the stream
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+

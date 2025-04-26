@@ -192,12 +192,12 @@ const MachineCodeVisualization: React.FC<MachineCodeVisualizationProps> = ({ mac
   // Get water temperature
   const getTemperature = () => {
     const heaterCmd = machineCode.commands.find(cmd => cmd.startsWith('H-'));
-    if (!heaterCmd) return "92°C";
+    if (!heaterCmd) return "92 PWM";
     
     const power = parseInt(heaterCmd.split('-')[1]);
-    if (power >= 90) return "95°C";
-    else if (power >= 70) return "92°C";
-    else return "89°C";
+    if (power >= 90) return "95 PWM";
+    else if (power >= 70) return "92 PWM";
+    else return "89 PWM";
   };
   
   return (

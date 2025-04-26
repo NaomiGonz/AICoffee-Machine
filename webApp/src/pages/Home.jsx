@@ -41,6 +41,9 @@ const Home = () => {
   const [selectedBrewId, setSelectedBrewId] = useState(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showRawCommands, setShowRawCommands] = useState(false);
+  const [brewProgress, setBrewProgress] = useState(0);
+  const [brewProgressSource, setBrewProgressSource] = useState(null);
+  const [isSendingToMachine, setIsSendingToMachine] = useState(false);
 
   const auth = getAuth();
   const user = auth.currentUser;
@@ -114,6 +117,23 @@ const Home = () => {
       </div>
     );
   };
+
+  const getBrewStageLabelSmart = (commands, progress) => {
+    if (!commands || commands.length === 0) return "Preparing...";
+  
+    // Figure out which command index we are approximately at
+    const index = Math.floor((progress / 100) * commands.length);
+    const command = commands[Math.min(index, commands.length - 1)]; // Safety to not go out of bounds
+  
+    if (!command) return "Processing...";
+  
+    if (command.startsWith("G-")) return "Grinding Beans...";
+    if (command.startsWith("H-")) return "Heating Water...";
+    if (command.startsWith("P-")) return "Brewing Coffee...";
+    if (command.startsWith("R-")) return "Mixing and Rotating...";
+    
+    return "Finalizing Brew...";
+  };  
 
   const handleSaveFeedback = async (brewId, rating, notes = "") => {
     if (!user) {
@@ -200,43 +220,71 @@ const Home = () => {
       alert("Please enter a coffee request");
       return;
     }
-
+  
     if (!user) {
       alert("User not authenticated. Please log in.");
       return;
     }
-
+  
     try {
       setIsLoading(true);
+      setIsSendingToMachine(true);
       setErrorMessage("");
       const token = await user.getIdToken();
-
+  
       const response = await fetch("http://localhost:8000/brew", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ 
-          query, 
+        body: JSON.stringify({
+          query,
           serving_size: servingSize,
           user_id: user.uid,
         }),
       });
-
+  
       if (!response.ok) throw new Error(`API error: ${response.status}`);
-
+  
       const data = await response.json();
       setBrewResult(data);
-
+  
+      if (data.brew_id) {
+        const source = new EventSource(`http://localhost:8000/brew-progress/${data.brew_id}`);
+        setBrewProgressSource(source);
+  
+        source.onmessage = (event) => {
+          const parsedData = JSON.parse(event.data);
+          setBrewProgress(parsedData.progress);
+  
+          // ✅ Clear "Sending..." first
+          if (parsedData.progress > 0 && isSendingToMachine) {
+            setIsSendingToMachine(false);
+          }
+  
+          // ✅ Then if 100%, close the EventSource
+          if (parsedData.progress >= 100) {
+            source.close();
+            setBrewProgressSource(null);
+          }
+        };
+  
+        source.onerror = (err) => {
+          console.error("Brew progress stream error:", err);
+          source.close();
+          setBrewProgressSource(null);
+        };
+      }
+  
       const historyResponse = await fetch(`http://localhost:8000/history/${user.uid}`, {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
+          "Content-Type": "application/json",
+        },
       });
-
+  
       if (historyResponse.ok) {
         const historyData = await historyResponse.json();
         setBrewHistory(historyData.history || []);
@@ -247,7 +295,7 @@ const Home = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  };  
 
   const handleUseExample = (example) => {
     setQueryInput(example);
@@ -319,75 +367,115 @@ const Home = () => {
               </div>
             </section>
 
-            {/* Brew Result Section */}
-            {brewResult && (
+            {/* Send to Machine Status */}
+
+            {isSendingToMachine && (
               <section className="bg-white rounded-lg shadow-md p-3 md:p-4">
-                <h2 className="text-lg md:text-xl font-bold text-[var(--color-roast)] mb-3">Your Brew Results</h2>
-                <div className="space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-6">
-                  <div className="bg-gray-50 rounded-md p-3">
-                    <h3 className="text-md md:text-lg font-medium mb-2">Brew Details</h3>
-                    <p className="text-sm text-gray-700 mb-1"><strong>Temperature:</strong> {brewResult.water_temperature_c}°C</p>
-                    <p className="text-sm text-gray-700 mb-1"><strong>Pressure:</strong> {brewResult.water_pressure_bar} bar</p>
-                    <p className="text-sm text-gray-700 mb-1"><strong>Serving Size:</strong> {brewResult.cup_size_oz} oz</p>
-                  </div>
-                  <div>
-                    <h3 className="text-md md:text-lg font-medium mb-2">Beans Used</h3>
-                    <ul className="space-y-2">
-                      {brewResult.beans.map((bean, idx) => (
-                        <li key={idx} className="p-2 bg-gray-50 rounded text-sm">
-                          <p className="font-semibold">{bean.name} ({bean.roast})</p>
-                          <p className="text-xs text-gray-600">{bean.notes} — {bean.amount_g}g</p>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-                
-                {/* Brewing Process Visualization */}
-                {brewResult.machine_code && brewResult.machine_code.commands && (
-                  <div className="mt-4">
-                    <MachineCodeVisualization machineCode={brewResult.machine_code} />
-                  </div>
-                )}
-                
-                {/* Machine Commands (Hidden by default, toggleable) */}
-                <div className="mt-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-md md:text-lg font-medium">Technical Details</h3>
-                    <button 
-                      onClick={() => setShowRawCommands(!showRawCommands)} 
-                      className="text-xs px-3 py-1 bg-gray-100 rounded-md hover:bg-gray-200"
-                    >
-                      {showRawCommands ? "Hide Commands" : "Show Commands"}
-                    </button>
-                  </div>
-                  
-                  {showRawCommands && (
-                    <div className="bg-gray-50 rounded-md p-3 text-sm font-mono whitespace-pre-wrap">
-                      {brewResult.machine_code?.commands?.join("\n") || "No commands returned."}
-                    </div>
-                  )}
-                </div>
-                
-                <div className="mt-4 flex justify-between items-center">
-                  <button
-                    onClick={() => {
-                      setSelectedBrewId(brewResult.brew_id);
-                      setShowFeedbackModal(true);
-                    }}
-                    className="px-4 py-2 text-sm bg-[var(--color-hgreen)] text-white rounded-md hover:bg-[var(--color-roast)]"
-                  >
-                    Leave Feedback
-                  </button>
-                  <button
-                    onClick={() => setBrewResult(null)}
-                    className="text-sm px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                  >
-                    Close
-                  </button>
+                <h2 className="text-lg md:text-xl font-bold text-[var(--color-roast)] mb-3">
+                  Preparing Your Coffee
+                </h2>
+                <p className="text-sm font-medium text-gray-700 mb-2">
+                  Sending instructions to the machine...
+                </p>
+                <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                  <div
+                    className="bg-gray-400 h-4 rounded-full animate-pulse"
+                    style={{ width: `100%` }}
+                  ></div>
                 </div>
               </section>
             )}
+
+
+            {/* Brew Result Section */}
+            {brewResult && (
+            <section className="bg-white rounded-lg shadow-md p-3 md:p-4">
+              <h2 className="text-lg md:text-xl font-bold text-[var(--color-roast)] mb-4">
+                Your Brew Results
+              </h2>
+
+              {/* Progress Bar */}
+              {brewProgress > 0 && brewProgress < 100 && (
+                <div className="mb-6">
+                  <p className="text-sm font-medium text-gray-700 mb-1">
+                    {getBrewStageLabelSmart(brewResult?.machine_code?.commands, brewProgress)}
+                  </p>
+                  <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                    <div
+                      className="bg-[var(--color-hgreen)] h-4 rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${brewProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              {/* Beans Used */}
+              <div className="bg-gray-50 p-4 rounded-md">
+                <h3 className="text-md md:text-lg font-semibold mb-3">Beans Used</h3>
+                <ul className="space-y-2">
+                  {brewResult?.beans?.map((bean, idx) => (
+                    <li key={idx} className="p-2 bg-white rounded-md text-sm shadow-sm">
+                      <p className="font-semibold">{bean.name} ({bean.roast})</p>
+                      <p className="text-xs text-gray-600">{bean.notes} — {bean.amount_g}g</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Brewing Process Visualization */}
+              {brewResult.machine_code?.commands && (
+                <div className="mt-6">
+                  <MachineCodeVisualization machineCode={brewResult.machine_code} />
+                </div>
+              )}
+
+              {/* Machine Commands Toggle */}
+              <div className="mt-6">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-md md:text-lg font-semibold">Technical Details</h3>
+                  <button
+                    onClick={() => setShowRawCommands(!showRawCommands)}
+                    className="text-xs px-3 py-1 bg-gray-100 rounded-md hover:bg-gray-200"
+                  >
+                    {showRawCommands ? "Hide Commands" : "Show Commands"}
+                  </button>
+                </div>
+
+                {showRawCommands && (
+                  <div className="bg-gray-50 rounded-md p-3 text-sm font-mono whitespace-pre-wrap">
+                    {brewResult.machine_code?.commands?.join("\n") || "No commands returned."}
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-6 flex flex-col md:flex-row justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setSelectedBrewId(brewResult.brew_id);
+                    setShowFeedbackModal(true);
+                  }}
+                  className="px-4 py-2 text-sm bg-[var(--color-hgreen)] text-white rounded-md hover:bg-[var(--color-roast)]"
+                >
+                  Leave Feedback
+                </button>
+                <button
+                  onClick={() => {
+                    if (brewProgressSource) {
+                      brewProgressSource.close();
+                      setBrewProgressSource(null);
+                    }
+                    setBrewProgress(0);
+                    setBrewResult(null);
+                  }}
+                  className="text-sm px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
+            </section>
+          )}
+
 
             {/* Brew History Section */}
             {brewHistory.length > 0 && (

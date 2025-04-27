@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.3",
+    "@tensorflow-models/coco-ssd": "^2.2.3",
+    "@tensorflow/tfjs": "^4.22.0",
     "firebase": "^9.23.0",
     "firebaseui": "^6.1.0",
     "mdx-mermaid": "^2.0.3",

@@ -34,7 +34,7 @@ db = firestore.client()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # ----------------------
-# Machine Control Functionsß
+# Machine Control Functions
 # ----------------------
 def format_command_string(commands):
     """

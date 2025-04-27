@@ -254,9 +254,9 @@ const Machine = () => {
                 className="border border-[var(--color-espresso)] rounded p-4 bg-white shadow-sm"
               >
                 <div className="flex justify-between items-center mb-3">
-                  <h3 className="font-semibold text-[var(--color-roast)]">
-                    Slot {idx + 1}
-                  </h3>
+                <h3 className="font-semibold text-[var(--color-roast)]">
+                  Slot {String.fromCharCode(65 + idx)}
+                </h3>
                   <Button
                     text="Scan Bag"
                     onClick={() => setActiveScanSlot(idx + 1)}

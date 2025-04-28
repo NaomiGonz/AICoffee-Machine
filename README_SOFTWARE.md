@@ -42,7 +42,7 @@ The ML pipeline in the AI Coffee Machine project is implemented in **`main.py`**
 
 Below is a flowchart of the **ML pipeline** as described by the diagram you provided, illustrating the dependencies between the key modules:
 
-![ML Pipeline Flowchart](ml_flowchart.png)
+![ML Pipeline Flowchart](images/ml_flowchart.png)
 
 The flowchart shows the sequential steps of the ML process, starting from user interaction through to feedback processing and final execution. 
 
@@ -120,7 +120,7 @@ The following tools and libraries are required for the development and execution
 
 3. **Set Up GPT-4 API Access**:
    - Sign up for **OpenAI GPT-4 API** access and obtain your API key from [OpenAI](https://www.openai.com/).
-   - Set up environment variables for secure access to the API:
+   - Set up environment variables in the backend folder for secure access to the API:
      ```bash
      export OPENAI_API_KEY="your-api-key-here"
      ```
@@ -128,8 +128,8 @@ The following tools and libraries are required for the development and execution
 4. **Clone Repository**:
    - Clone the repository and navigate to the project folder:
      ```bash
-     git clone https://github.com/your-repository-link.git
-     cd your-repository-folder
+     git clone https://github.com/NaomiGonz/AICoffee-Machine.git
+     cd backend
      ```
 
 5. **Run the ML Model**:

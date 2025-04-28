@@ -1,5 +1,3 @@
-Here's the updated **README_SOFTWARE.md** with links to the sections for easy navigation and the image for the software diagram:
-
 ---
 
 # **README_SOFTWARE.md** – AI Coffee Machine Project

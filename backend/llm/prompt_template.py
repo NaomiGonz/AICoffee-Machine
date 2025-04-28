@@ -69,7 +69,7 @@ def extract_preferences_from_feedback(brew_history):
 def build_system_prompt(available_beans, feedback_brews=None):
     """
     Builds the system prompt for the LLM, dynamically including brewing parameters 
-    and respecting updated grinder and cleaning flowchart.
+    and respecting the updated grinder ramp-down logic.
     """
     bean_descriptions = []
     for bean in available_beans:
@@ -80,7 +80,6 @@ def build_system_prompt(available_beans, feedback_brews=None):
     user_pref_summary = extract_preferences_from_feedback(feedback_brews or [])
     preference_hint = f"\n\nBased on the user's past brews, consider the following preferences:\n{user_pref_summary}" if user_pref_summary else ""
 
-    # Brewing defaults
     pressure = 1
     temperature = 92
     brew_strength = 'normal'
@@ -112,7 +111,7 @@ def build_system_prompt(available_beans, feedback_brews=None):
         grind_size = "G-100"
 
     water_volume_ml = water_amount
-    flow_rate_mlps = max(2.5, 5.0)  # Ensures minimum 2.5 mL/s
+    flow_rate_mlps = max(2.5, 5.0)  # Ensure minimum 2.5 mL/s
 
     if brew_strength == "strong":
         flow_rate_mlps = 2.5
@@ -125,39 +124,41 @@ def build_system_prompt(available_beans, feedback_brews=None):
     elif brew_strength == "mild":
         grinder_rpm = 3000
 
-    # Bean dispense times (in seconds)
     colombian_dispense_time = round(colombian_weight / 0.61, 1)
     brazil_dispense_time = round(brazil_weight / 0.61, 1)
 
-    # Heater power mapping
     heating_power = int((temperature - 88) * (30/8) + 70)
-    heating_power = min(100, max(70, heating_power))  # Clamp between 70%-100%
+    heating_power = min(100, max(70, heating_power))  # Clamp to 70%-100%
 
-    # Final updated system prompt
     return f"""
-You are a coffee brewing assistant. You will receive a user's request for a coffee with certain flavor preferences.
+You are a coffee brewing assistant. Your job is to generate JSON brew configurations following these rules:
 
-Follow these rules:
-
-1. Only select from the following available beans:
+1. Only use these available beans:
 {beans_str}{preference_hint}
 
-2. Mix up to 3 of these beans with specific gram amounts.
-   Example: {colombian_weight}g Colombian Supremo + {brazil_weight}g Brazil Santos
+2. Mix up to 3 beans specifying grams.
 
-3. Do not mention or use any beans not listed above.
+3. Grind size is {grind_size}.
 
-4. Grind size is fixed at {grind_size} for this brew.
+4. Set water temperature to {temperature}°C.
 
-5. Water temperature: {temperature}°C.
+5. Set brew pressure to {pressure} bar.
 
-6. Pressure: {pressure} bar.
+6. Flow rate must be at least 2.5 mL/s.
 
-7. Ask the user to clarify cup size if missing (3oz, 7oz, 10oz).
+When generating the machine_code.commands array, follow this grinder sequence AFTER dispensing beans:
 
-8. Do not generate brew config until cup size is known.
+- Set grinder RPM to 3600 → wait 5 sec
+- Set grinder RPM to 3000 → wait 5 sec
+- Set grinder RPM to 2500 → wait 5 sec
+- Set grinder RPM to 2000 → wait 5 sec
+- Set grinder RPM to 1250 → wait 30 sec
+- Turn grinder off (G-0)
 
-When information is complete, output in strict JSON:
+Follow normal brewing commands after grinder off.
+
+Output strictly in JSON format.
+Example (core template):
 
 {{
   "coffee_type": "latte|espresso|french_press|pour_over|custom",
@@ -186,6 +187,7 @@ When information is complete, output in strict JSON:
       "D-{int(colombian_dispense_time * 1000)}",
       "S-B-{brazil_dispense_time}",
       "D-{int(brazil_dispense_time * 1000)}",
+      
       "G-3600",
       "D-5000",
       "G-3000",
@@ -195,72 +197,19 @@ When information is complete, output in strict JSON:
       "G-2000",
       "D-5000",
       "G-1250",
-      "D-30000",
-      "G-1000",
-      "D-10000",
-      "G-1250",
-      "D-10000",
-      "G-1500",
-      "D-10000",
-      "G-1750",
-      "D-10000",
-      "G-2000",
-      "D-10000",
-      "G-2250",
-      "D-10000",
-      "G-2500",
-      "D-10000",
-      "G-2750",
-      "D-10000",
-      "G-3000",
-      "D-10000",
-      "G-3250",
-      "D-10000",
-      "G-3500",
-      "D-10000",
-      "G-3600",
-      "D-10000",
-      "G-3500",
-      "D-10000",
-      "G-3250",
-      "D-10000",
-      "G-3000",
-      "D-10000",
-      "G-2750",
-      "D-10000",
-      "G-2500",
-      "D-10000",
-      "G-2250",
-      "D-10000",
-      "G-2000",
-      "D-10000",
-      "G-1750",
-      "D-10000",
-      "G-1500",
-      "D-10000",
-      "G-1250",
-      "D-10000",
-      "G-1000",
       "D-30000",
       "G-0",
-      "R-3600",
-      "D-5000",
+      
+      "R-3300",
+      "D-3000",
       "H-{heating_power}",
+      "D-100",
       "P-{water_volume_ml}-{flow_rate_mlps}",
-      "D-20000",
+      "R-20000",
+      "D-84000",
+      "H-0",
       "R-0"
     ]
   }}
 }}
-
-Additional rules:
-
-- Grinder cleaning must ramp **1000RPM → 3600RPM → 1000RPM** in 250RPM steps, holding 10s each, final hold 30s at 1000RPM.
-- Minimum flow rate = **2.5 mL/s** always.
-- Water temperatures and heater power must align:
-  - Hot (94–96°C) → H-90 at 2.5–3.5 mL/s
-  - Medium (91–93°C) → H-70 at 4.0–5.5 mL/s
-  - Cold (88–90°C) → H-50 at 6.5–8.0 mL/s
-
-Respond ONLY with the JSON structure.
 """.strip()

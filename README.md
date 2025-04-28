@@ -11,7 +11,7 @@ FastAPI + ML backend, and a React web UI.
 
 | Module | One-liner |
 |--------|-----------|
-| **Firmware** | Runs on an ESP32-S3; controls 2 × VESC BLDCs, PID-driven pump, heater PWM, and four servos—**all in real time**. |
+| **Firmware** | Runs on an ESP32-S3; controls 2 × VESC BLDCs, PID-driven pump, heater PWM, and three servos—**all in real time**. |
 | **Backend** | FastAPI service with an ML personalization pipeline (prompt → GPT-4 → brew JSON → machine commands). |
 | **Web App** | Vite + React frontend for user accounts, brew requests, and live machine telemetry. |
 | **Hardware** | Fully 3-D-printed centrifugal brewer + direct-drive conical grinder—documented for replication. |
@@ -60,8 +60,8 @@ AI-Coffee-Machine/
 |-----------|---------|----------|
 | **Arduino-ESP32 Core** | ≥ 2.0.15 | Firmware build |
 | **PlatformIO CLI** | optional | Alternative firmware build |
-| **Python ≥ 3.8** | — | Backend / ML |
-| **Node ≥ 14** | — | Web frontend |
+| **Python** | ≥ 3.8 | Backend / ML |
+| **Node** | ≥ 14 | Web frontend |
 | **Bambu X1-C / any 300 mm FDM** | — | Printing hardware |
 
 ---

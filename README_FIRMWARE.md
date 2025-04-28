@@ -1,6 +1,6 @@
 # ESP32 Centrifugal-Coffee Machine Control Firmware
 
-![Control-Flow Diagram](control-flow-chart.png)
+![Control-Flow Diagram](images/control-flow-chart.png)
 
 ---
 

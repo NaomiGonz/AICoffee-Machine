@@ -307,17 +307,77 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "128.197.180.251
                     
                     # Continue the command sequence
                     commands.extend([
-                        "D-25000",  # Keep grinder on for 5 seconds after servos
-                        "G-0",     # Turn off grinder
-                        f"R-{drum_rpm}",  # Drum rotation speed
-                        "D-3000",  # Drum spin-up delay
-                        f"H-{heat_power}",  # Heater power (range: 50-90)
-                        "D-100",   # Heater warmup delay
-                        f"P-{water_volume_ml}-{flow_rate_mlps}",  # Water pump with updated flow rate
-                        "R-20000", # Keep drum running
-                        "D-84000", # Post-pump delay
-                        "H-0",     # Turn off heater
-                        "R-0"      # Turn off drum
+                        # Start ramp-down after dispensing beans
+                        "G-3600",
+                        "D-5000",
+                        "G-3000",
+                        "D-5000",
+                        "G-2500",
+                        "D-5000",
+                        "G-2000",
+                        "D-5000",
+                        "G-1250",
+                        "D-30000",
+
+                        # Cleaning ramp-up and ramp-down
+                        "G-1000",
+                        "D-10000",
+                        "G-1250",
+                        "D-10000",
+                        "G-1500",
+                        "D-10000",
+                        "G-1750",
+                        "D-10000",
+                        "G-2000",
+                        "D-10000",
+                        "G-2250",
+                        "D-10000",
+                        "G-2500",
+                        "D-10000",
+                        "G-2750",
+                        "D-10000",
+                        "G-3000",
+                        "D-10000",
+                        "G-3250",
+                        "D-10000",
+                        "G-3500",
+                        "D-10000",
+                        "G-3600",
+                        "D-10000",
+                        "G-3500",
+                        "D-10000",
+                        "G-3250",
+                        "D-10000",
+                        "G-3000",
+                        "D-10000",
+                        "G-2750",
+                        "D-10000",
+                        "G-2500",
+                        "D-10000",
+                        "G-2250",
+                        "D-10000",
+                        "G-2000",
+                        "D-10000",
+                        "G-1750",
+                        "D-10000",
+                        "G-1500",
+                        "D-10000",
+                        "G-1250",
+                        "D-10000",
+                        "G-1000",
+                        "D-30000",
+                        "G-0",  # Finally, turn off grinder
+
+                        # Now continue with drum and brewing
+                        f"R-{drum_rpm}",
+                        "D-3000",
+                        f"H-{heat_power}",
+                        "D-100",
+                        f"P-{water_volume_ml}-{flow_rate_mlps}",
+                        "R-20000",
+                        "D-84000",
+                        "H-0",
+                        "R-0"
                     ])
 
                     return commands

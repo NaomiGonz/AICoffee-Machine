@@ -1,143 +1,181 @@
 # AI‑Coffee Machine – **Mechanical Build Guide**
 
-**Version:** 0.4 • **Status:** Alpha prototype under active development  
-**Scope:** This document _only_ covers the **physical hardware**—cad, print, coat, wire, and assemble—so that anyone with a mid‑size FDM printer can reproduce the machine. Firmware, electronics schematics, and the flavor‑profiling ML work live in their own folders.
+**Version:** 0.7 • **Status:** Alpha prototype  
+**Scope:** Detailed mechanical design notes for fully‑3D‑printed centrifugal espresso machine.  
+*Control firmware, schematics and ML flavour model live elsewhere in the repository.*
 
-> ### ⚠️ Safety & Regulatory
-> *All wetted parts are coated in FDA‑compliant epoxy (e.g. Smooth‑On XTC‑3D or equivalent). Follow the manufacturer’s cure schedule and **do not brew through uncured epoxy**.*  
-> Double‑insulate mains wiring, earth‑bond the metal chassis of the power supplies, and run a leakage‑current test before the first brew.
+> **Manufacturing summary**  
+> • Entire structure (frame ribs, brew drum, grinder cradle, hopper, augers, panels) is **FDM‑printed in ABS** on a **Bambu Labs X1‑C** with 0.4 mm nozzle.  
+> • Every food‑contact surface is flood‑coated in FDA‑compliant epoxy.  
+> • Both BLDC motors operate **direct‑drive**—zero belts or gearboxes.  
+> • Motor leads use **10 AWG silicone wire** with **4 mm bullets** (drum) and **3.5 mm bullets** (grinder).
 
 ---
 
-## Table of Contents
-1. [Required Tooling & Consumables](#1-required-tooling--consumables)  
-2. [Printer Requirements & Recommended Settings](#2-printer-requirements--recommended-settings)  
-3. [Epoxy Coating & QA Procedure](#3-epoxy-coating--qa-procedure)  
-4. [Part A – Brew‑Head Sub‑Assembly](#4-part-a--brew-head-sub-assembly)  
-   4.1  Extraction Drum  
-   4.2  Grinder Module  
-5. [Part B – Main Body & Fluid Management](#5-part-b--main-body--fluid-management)  
-6. [Part C – Electronics Stack (Mechanical View)](#6-part-c--electronics-stack-mechanical-view)  
-7. [Part D – Assembly Sequence](#7-part-d--assembly-sequence)  
-8. [Part E – Calibration & Functional Tests](#8-part-e--calibration--functional-tests)  
-9. [Maintenance & Cleaning](#9-maintenance--cleaning)  
-10. [Reference Micron Sizes](#10-reference-micron-sizes)  
+## Table of Contents
+1. [Tools & Consumables](#1-tools--consumables)  
+2. [Printing Settings](#2-printing-settings)  
+3. [Epoxy Quality‑Assurance](#3-epoxy-quality-assurance)  
+4. [Major Sub‑Assemblies](#4-major-sub-assemblies)  
+   4.1 Extraction Drum  4.2 Grinder Module  4.3 Auger Bean‑Handling  4.4 Main Frame & Fluid  
+5. [Mechanical Process Flow](#5-mechanical-process-flow)  
+6. [Electronics Frame & Wiring](#6-electronics-frame--wiring)  
+7. [Complete Bill of Materials](#7-complete-bill-of-materials)  
+8. [Assembly Order](#8-assembly-order)  
+9. [Calibration & Tests](#9-calibration--tests)  
+10. [Maintenance](#10-maintenance)  
 11. [License](#license)
 
 ---
 
-## 1. Required Tooling & Consumables
-* **Printer:** Core‑XY or cartesian FDM with 300 × 300 × 300 mm build volume, 0.4 mm nozzle, heated bed.  
-* **Filament:** High‑temp ABS or ASA (≥ 110 °C Tg) ‑ 2.0 kg. PETG or CF‑Nylon where specified.  
-* **Epoxy:** 400 ml Smooth‑On XTC‑3D _or_ SRC Economies Food‑Grade Epoxy.  
-* **Fasteners:**  
-  * M3 × 8 button‑head ‑ 96 pcs  
-  * M3 × 16 socket‑head ‑ 44 pcs  
-  * M3 heat‑set inserts ‑ 160 pcs  
-  * M4 × 12 cap screws (motor adapters) ‑ 20 pcs  
-* **Bearings:** 6802‑2RS (15 × 24 × 5 mm) ‑ 2 pcs  
-* **Tools:** Soldering iron, crimping set, cone‑torque driver (0.4 N·m), calipers, leak‑test pump.
+## 1. Tools & Consumables
+| Item | Spec |
+|------|------|
+| FDM Printer | Bambu Labs X1‑C (300 × 300 × 256 mm) |
+| Filament | ABS 1.75 mm, ≈ 2 kg |
+| Epoxy | FDA‑compliant (e.g. Smooth‑On XTC‑3D) |
+| Fasteners | M3 × 8 (96), M3 × 16 (44), M3 inserts (160), M4 × 12 (20) |
+| Bearings | 6802‑2RS (15 × 24 × 5 mm) – 2 pcs |
+| Wire | 10 AWG (motors), 18 AWG (logic) silicone |
+| Connectors | 4 mm & 3.5 mm bullets, JST‑XH, Wago 221 |
 
 ---
 
-## 2. Printer Requirements & Recommended Settings
-| Setting | Value | Rationale |
-|---------|-------|-----------|
-| Nozzle dia. | 0.4 mm | Handles tall walls + fine perforations |
-| Layer height | 0.25 mm | Balance strength/time |
-| Infill | 35 % gyroid (frame), 100 % solid (drum base) | Drum must withstand 5 bar radial load |
-| Perimeters | 3 shells | Prevent layer delam under heat |
-| Chamber | ≥ 45 °C | Improve ABS layer adhesion |
-| Post‑anneal | 90 °C, 2 h (covered) | Shrink‑age relief before epoxy |
-
-*Print orientation tips:*  
-* Drum shell prints nose‑up; spline pocket faces the build plate to avoid support scars inside the food zone.  
-* Frame ribs print flat; slot surfaces stay dimensional.
+## 2. Printing Settings
+* **Nozzle Ø:** 0.4 mm  **Layer H:** 0.25 mm  
+* **Perimeters:** 3    **Infill:** 35 % gyroid (frame) • 100 % solid (drum hub)  
+* **Temps:** 250 °C nozzle / 110 °C bed  **Chamber:** ≥ 45 °C  
+* **Anneal:** 90 °C × 2 h, slow‑cool to 40 °C.
 
 ---
 
-## 3. Epoxy Coating & QA Procedure
-1. **Prep** – Wet‑sand printed parts with 320 → 600 grit; solvent‑wipe with isopropanol.  
-2. **Mix** – Degas epoxy for 60 s in a syringe to avoid bubbles in micro‑holes.  
-3. **Flood coat** – Rotate part slowly (< 10 RPM) to achieve a 0.2‑0.4 mm film.  
-4. **Cure** – 24 h @ 25 °C or 4 h @ 60 °C (forced).  
-5. **Leak test** – Fill drum with 90 °C water, stand 30 min, inspect seams.  
-6. **Sanity rinse** – Brew‑cycle one litre of citric‑acid solution before contact with beans.
+## 3. Epoxy Quality‑Assurance
+1. Wet‑sand (P320 → P600), wipe IPA.  
+2. Degas epoxy, flood‑coat to ≈ 0.3 mm; rotate parts ≤ 10 RPM.  
+3. Cure 24 h @ 25 °C (or 4 h @ 60 °C).  
+4. Leak‑test drum with 90 °C water, 30 min soak.  
+5. Brew & discard 1 L 1 % citric‑acid rinse before first use.
 
 ---
 
-## 4. Part A – Brew‑Head Sub‑Assembly
+## 4. Major Sub‑Assemblies
 
-### 4.1 Extraction Drum (100 % Printed)
-* **Shell** – ABS, flood‑epoxied. Rated 120 °C, 5 bar.  
-* **Perforated sleeve install** – Slide sleeve into shell; align laser seam with keyed groove. Cap compresses sleeve onto EPDM O‑ring (torque: 0.3 N·m).  
-* **Motor coupling** – Four M4 × 12 fix the printed spline adapter to drone motor bell—use blue threadlocker (max 150 °C).  
-* **Bearings & hub** – Press‑fit 6802s into hub _after_ epoxy cures to avoid contamination.
+### 4.1 Extraction Drum – *Centrifugal Micro‑Percolator*
+| Element | Function & Design Rationale |
+|---------|-----------------------------|
+| **Drum Shell & Hub** | Single‑wall ABS cylinder bonded to solid hub. Flood epoxy eliminates layer porosity, allowing drum to withstand ≈ 5 bar radial pressure during 5 000 RPM cleaning cycles. |
+| **Perforated Sleeve** | 0.25 mm 304 SS sheet laser‑drilled with 0.10–0.15 µm holes on 250 µm pitch. Sleeve retains fines while letting brewed liquor escape at low ΔP; wrap seam is captured in shell groove to avert bypass leakage. |
+| **Locking Cap & O‑ring** | ABS cap torques against EPDM O‑ring, compressing sleeve for uniform seal. 0.3 N·m recommended with a torque‑limiting driver. |
+| **Direct‑Drive Motor** | **T‑Motor 50‑40 400 kV** outrunner couples via printed spline; no gearbox means < 2 ° torsional backlash and minimal noise. Drum idle: 1 500 eRPM (≈ 215 RPM shaft); Extraction: variable 3 000–6 000 eRPM to modulate centrifugal pressure. |
+| **Splash Shroud & Spout** | Printed ABS sleeve around motor can deflects brew downwards into static spout; prevents wetting of stator leads. |
 
-### 4.2 Grinder Module
-* **Burr cartridge** – Stock conical burrs; outer carrier printed in PETG (epoxied).  
-* **6385 motor mount** – Printed yoke holds Φ 63 mm can using two worm‑drive clamps.  
-* **Servo plate + augers** – FR‑4 disk embeds M3 inserts. Augers print vertical; trim threads, then hot‑press onto servo horns.  
-* **Hopper** – Hex‑socket lid accepts RFID tag for bean‑type tracking (optional).
+### 4.2 Grinder Module – *Low‑Speed, High‑Torque Conical Burr*
+| Component | Function & Notes |
+|-----------|------------------|
+| **140 kV 63 × 85 mm Outrunner** | Direct‑drive to outer burr; 24 V VESC maintains 3 600 eRPM (≈ 515 RPM shaft). Low kV supplies 1.1 N·m stall torque—adequate for espresso fineness without gear reduction. |
+| **Burr Carrier** | ABS cradle keeps burrs coaxial; epoxy layer lets fines slide to chute, mitigating retention. |
+| **Hopper** | 1 L ABS vessel with conical floor; epoxy finish prevents bean oils from soaking plastic. RFID pocket enables future bean‑profile lookup. |
+| **Anti‑Static PTFE Chute** | Short drop minimizes dwell time, reducing clumping. |
+| **Servo Index Plate** | FR‑4 disk anchors three 360° micro‑servos at 120 ° spacing (see 4.3). |
 
----
+### 4.3 Auger Bean‑Handling – *Pre‑Break & Meter*
+| Element | Role |
+|---------|------|
+| **Helical Augers (×3)** | Printed ABS helices (Ø 12 mm) ride on brass bushings; continuous‑rotation servos spin at 30 RPM, slicing bridging beans and metering flow. |
+| **Servo Firmware** | ESP32 sends 1.3 ms PWM (≈ 65 % duty) for “slow‑feed” and 1.5 ms for purge. |
+| **Guide Funnel** | Leads broken beans into burr throat, guaranteeing continuous feed even with oily roasts. |
 
-## 5. Part B – Main Body & Fluid Management
-The **frame** replaces aluminium 2020 with interlocking ABS ribs. Each rib has dovetail keys; stack them and wick with acetone for a monolith.  
-* **Base trough** – Prints in two halves; align dowel pins and solvent‑weld. Flood‑coat interior.  
-* **Water route** – Silicone hose (6 mm ID) emerges from pump, loops under electronics, up rear riser → inline heater → spray ring. Hose clamps are #10 SS Oetiker ear clamps.  
-* **Reservoir interface** – Keurig check‑valve (#5026000) press‑fits into printed seat; back‑seal with EPDM gasket.
-
----
-
-## 6. Part C – Electronics Stack (Mechanical View)
-*Printed backplane* separates **LV (≤ 24 V)** and **HV (120 VAC)** compartments with a 3 mm FR‑4 fire barrier.  
-* **Cooling** – 40 × 40 mm blower (24 V) pushes 6 CFM across PSU heatsinks. Shroud prints in ABS, 15 % infill.  
-* **Harness guide** – Cable comb maintains 5 mm creepage between HV & LV.  
-* **Drag‑chain** – 10 × 20 mm IGUS style; anchor tabs printed in CF‑Nylon.
-
----
-
-## 7. Part D – Assembly Sequence
-1. **Print & epoxy‑coat all parts.**  
-2. Press bearings into drum hub; mount drum on motor; run at 1 000 RPM for 1 min to verify balance.  
-3. Assemble grinder: augers → servo plate → burr cartridge → motor yoke. Bench‑feed beans to check for jams.  
-4. Bond frame ribs; drop in base trough; insert pump + flow sensor; leak‑test sump.  
-5. Mount electronics tray; terminate AC inlet & PSU mains first, then LV harness.  
-6. Route silicone hose, clamp to bulkheads.  
-7. Fit body panels and spout.  
-8. Flash firmware, run *dry‑mode* tests (motors at 10 % duty, heater disabled).  
-9. Brew citric rinse; discard.
+### 4.4 Main Frame & Fluid – *Rigid, Leak‑Isolated Skeleton*
+| Part | Details |
+|------|---------|
+| **Frame Ribs** | Ten interlocking ABS ribs (6 mm thick) solvent‑weld into a monocoque cage. No aluminium 2020 needed; ribs self‑jig. |
+| **Base Trough (Sump)** | Captures any leak; epoxy sealing plus 3 ° draft for drainability. |
+| **Water Path** | Keurig reservoir → 10 mm OD hose → 12 V pump → Hall flow sensor → 1 500 W inline heater → spray ring (four 0.8 mm jets). All tubing rated 150 °C. |
+| **Bulkheads & Grommets** | Printed ABS bulkhead fittings clamp hose via SS ear clamps; prevent chafing at panel pass‑through. |
 
 ---
 
-## 8. Part E – Calibration & Functional Tests
+## 5. Mechanical Process Flow
+1. **System wake‑up** – ESP32 boots; VESCs pre‑charge capacitors; pump & heater idle.  
+2. **Beans Metering** – Servos command *slow‑feed* (30 RPM). Augers pre‑break whole beans, conveying fragments into burr gap.  
+3. **Grinder Spin‑Up** – Grinder BLDC ramps to **3 600 eRPM** (≈ 515 RPM shaft). Burr gap preset to 250 µm produces espresso‑grade particles (180–380 µm D₅₀).  
+4. **Powder Deposition** – Drum holds **1 500 eRPM** while grounds enter tangentially, forming a uniform puck on inner wall. ESP32 monitors weight (future task) to stop grinder at dose.  
+5. **Pre‑Wet** – Pump primes heater; 30 g water sprayed at drum idle to settle fines and degas puck. 5 s dwell.  
+6. **Extraction Ramp** – Drum accelerates to target centrifugal pressure (3 000–6 000 eRPM). Simultaneously, heater reaches 90 °C; pump delivers brew water at 1.5 ml s⁻¹. Liquor passes radially through micro‑holes while grounds remain pinned by 60–120 g centrifugal force.  
+7. **Filtrate Collection** – Brew jets against splash shroud, slides down spout into cup. Flow sensor provides real‑time volume; pump stops at 30 g brew yield.  
+8. **Purge & Cool‑Down** – Drum returns to 6 000 eRPM dry for 3 s to sling residual liquid; then free‑wheels to stop. Augers reverse 2 s to clear throat.  
+9. **Standby** – Heater off, pump vents; system ready for next cycle.
+
+---
+
+## 6. Electronics Frame & Wiring
+* Dual printed ABS plates isolate LV and mains.  
+* Components mount on **120 mm brass standoffs** with M3 screws.  
+* **10 AWG motor cables** exit through printed strain‑relief into drag‑chain; terminate in bullets at VESCs.  
+* 5‑way **Wago 221** connectors distribute DC rails; IEC inlet feeds PSUs through Omron SSR.
+
+---
+
+## 7. Complete Bill of Materials
+
+| # | Qty | Part / Description | Notes |
+|---|-----|--------------------|-------|
+| 1 | 10 | **Wago 221‑415** 5‑way lever connectors | Power splits |
+| 2 | 1 | Keurig™ water reservoir | |
+| 3 | 1 | 12 V self‑priming diaphragm pump | |
+| 4 | 1 m | 10 mm OD × 1 mm wall silicone hose | |
+| 5 | 1 | **ESP32‑S3 DevKit** | |
+| 6 | 1 | 8‑ch **level shifter** | |
+| 7 | 1 | **L298N** motor driver | |
+| 8 | 1 | **Omron G3NB‑210B‑1** SSR | |
+| 9 | 1 | **Mean Well RS‑25‑5** (5 V) | |
+|10 | 1 | **Mean Well LRS‑180‑12** (12 V) | |
+|11 | 1 | **Mean Well LRS‑350‑24** (24 V) | |
+|12 | 2 | **VESC 6.2 (single)** | |
+|13 | 1 | **T‑Motor 50‑40 400 kV** BLDC | Drum |
+|14 | 1 | **63 × 85 mm 140 kV** BLDC | Grinder |
+|15 | 1 | Keurig 1 500 W inline heater | |
+|16 | 45 | M3 × 10 mm screws | |
+|17 | 120 mm | Brass standoffs (M3) | |
+|18 | 1 | AC power cord | IEC‑C13 |
+|19 | 1 | IEC inlet + switch + fuse | |
+|20 | — | 10 AWG silicone wire + bullets | Motors |
+|21 | — | 18 AWG silicone wire + JST | Logic |
+|22 | 2 | 6802‑2RS bearings | |
+|23 | — | EPDM O‑rings, grease | |
+|24 | — | ABS filament (≈ 2 kg) | |
+
+---
+
+## 8. Assembly Order
+1. Print & epoxy‑coat parts.  
+2. Assemble drum; spin‑test at 1 000 RPM.  
+3. Build grinder module; validate feed.  
+4. Weld frame ribs; install sump; leak‑test.  
+5. Mount electronics; terminate 10 AWG motor leads.  
+6. Plumb water line; clamp.  
+7. Flash firmware; dry‑run.  
+8. Brew citric rinse.
+
+---
+
+## 9. Calibration & Tests
 | Test | Target | Method |
 |------|--------|--------|
-| **Grinder burr gap** | 250 µm (espresso) | Feeler gauge at zero‑load |
-| **Flow sensor k‑factor** | 4500 pulses/L | Pump 500 ml, record pulses, adjust firmware |
-| **Drum balance** | ≤ 0.05 g@90 mm radius | Smartphone vibrometer app on frame |
-| **Water temp** | 90 ± 2 °C at spray ring | Type‑K probe during brew |
-
-All tests log to serial console; accept/reject criteria printed in firmware.
+| Flow‑meter K | 4 500 pulses / L | 500 ml test |
+| Water temp | 90 ± 2 °C | Type‑K probe |
+| Drum vib. | ≤ 0.05 g @ 1 500 eRPM | Vibrometer app |
+| Burr gap | 250 µm | Feeler |
 
 ---
 
-## 9. Maintenance & Cleaning
-* **Daily** – Purge with 250 ml hot water; wipe hopper with lint‑free cloth.  
-* **Weekly** – Remove drum, back‑flush sleeve with 1 % Cafiza.  
-* **Monthly** – Descale heater coil (100 ml vinegar, 10 min soak).  
-* **Bearing service** – Replace drum bearings every 30 kg of coffee or 9 months, whichever first.
-
----
-
-## 10. Reference Micron Sizes
-| Brew style | Modal particle size |
-|------------|--------------------|
-| Turkish    | **40 – 220 µm** |
-| Espresso   | **180 – 380 µm** |
+## 10. Maintenance
+* **Daily:** Purge 250 ml; wipe hopper.  
+* **Weekly:** Cafiza back‑flush.  
+* **Monthly:** Descale heater.  
+* **Service:** Bearings @ 30 kg coffee / 9 mo.
 
 ---
 
 ## License
-MIT License – see `LICENSE` for full text.
+MIT – see `LICENSE`.

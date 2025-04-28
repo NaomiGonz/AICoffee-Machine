@@ -1,4 +1,122 @@
-## **Machine Learning Module Documentation (AI Coffee Machine)**
+Here's the updated **README_SOFTWARE.md** with links to the sections for easy navigation and the image for the software diagram:
+
+---
+
+# **README_SOFTWARE.md** – AI Coffee Machine Project
+
+## **Table of Contents**
+
+- [Web App Module Documentation](#web-app-module-documentation)
+- [Machine Learning Module Documentation](#machine-learning-module-documentation)
+
+---
+
+## **Web App Module Documentation**
+
+### **Overview**
+
+The **Web App** module serves as the frontend for the **AI Coffee Machine** project, providing users with a seamless interface to interact with the coffee machine. It enables users to submit their coffee preferences, view brewing history, and receive real-time feedback. Built using **React** and **Vite**, the frontend communicates with the backend through API calls, displaying the brewing results and allowing for smooth user interaction.
+
+---
+
+### **Pages in the Web App**
+
+1. **Welcome.jsx**  
+   The **Welcome** component is the first screen users see when they open the web app. It introduces the AI Coffee Machine, giving a brief overview of the system and providing a button for users to get started. The user can navigate to the login page from here.
+
+2. **Register.jsx**  
+   The **Register** page allows new users to create an account by providing an email and password. It includes form validation and error handling for failed registration attempts. After successful registration, users are redirected to the home page.
+
+3. **Login.jsx**  
+   The **Login** component enables existing users to sign in using their email and password, or they can sign in with Google. If authentication is successful, users are directed to the home page. If there are errors during login, they are displayed for the user.
+
+4. **Home.jsx**  
+   The **Home** page is the central hub where users interact with the AI Coffee Machine. They can enter coffee preferences, adjust serving sizes, and send brew requests to the backend. It also displays a list of recent brews and allows users to leave feedback on their past brews.
+
+5. **Machine.jsx**  
+   The **Machine** page provides users with a detailed view of the brewing process, including machine commands and real-time progress tracking. It enables users to view the status of their brew, including the current stage of the brewing process.
+
+6. **CoffeeDetails.jsx**  
+   This page shows detailed information about a specific coffee, including flavor notes, brewing instructions, and characteristics like bitterness, acidity, and sweetness. Users can view a coffee's details and initiate a brew directly from this page.
+
+7. **Account.jsx**  
+   The **Account** page allows users to view their profile information, such as name, email, and account creation date. It also provides an option for users to delete their accounts or manage saved brews (though this feature is not fully implemented).
+
+---
+
+### **Components in the Web App**
+
+1. **NavBar.jsx**  
+   The **NavBar** component is responsible for rendering the navigation bar that appears at the top of the app. It provides links to the main sections of the app, such as Home, Machine, and Account. It also includes a logout button that allows users to sign out.
+
+2. **MachineCodeVisualization.tsx**  
+   The **MachineCodeVisualization** component visualizes the brewing process, displaying steps like grinding, dispensing, brewing, and extraction. It tracks and shows real-time updates as the brew progresses, allowing users to follow the process visually.
+
+3. **FeedbackModal.jsx**  
+   The **FeedbackModal** component allows users to leave feedback on their brewed coffee. It provides a rating system and an optional text area for additional notes, helping improve future brewing recommendations.
+
+4. **CoffeeCard.jsx**  
+   The **CoffeeCard** component displays a preview of a coffee with its name, description, and image. It is used in sections like featured coffees, where users can click on a coffee to view more details.
+
+5. **BrewHistoryCard.jsx**  
+   The **BrewHistoryCard** component shows a saved brewing session with details like the coffee flavor, parameters, and the time it was brewed. It includes options to "Brew Again," save the brew, or delete it from saved brews.
+
+6. **BeanScanner.jsx**  
+   The **BeanScanner** component uses the camera to scan coffee bags and detect the bean type, roast, and other characteristics. It captures the front and back images of the coffee bag and processes them for further identification.
+
+---
+
+### **How the Web App Works**
+
+#### **1. User Interaction**
+- The user interacts with the **Home** page to submit their coffee preferences and select a serving size.
+- They can also browse coffee details via **CoffeeDetails.jsx** and view saved brews in **Account.jsx**.
+
+#### **2. Backend Communication**
+- The web app communicates with the backend via **FastAPI** to send the brew request and fetch brewing history.
+
+#### **3. Display Feedback**
+- Once the brew is processed, the system shows personalized recommendations, and users can provide feedback via **FeedbackModal.jsx**.
+
+---
+
+### **Dev/Build Tool Information**
+
+- **Node.js 14.x**: Required for the development environment.
+- **Vite 2.x**: Used for bundling and building the app.
+- **React 17.x**: JavaScript library used to build the user interface.
+- **ESLint 7.x**: For linting and maintaining code quality.
+
+---
+
+### **How to Install the Web App Software Stack**
+
+1. **Install Dependencies**:
+   - Ensure that you have **Node.js 14.x** installed.
+   - Install project dependencies:
+     ```bash
+     npm install
+     ```
+
+2. **Start the Web App**:
+   - Run the development server:
+     ```bash
+     npm run dev
+     ```
+
+3. **Build for Production**:
+   - To build the project for production:
+     ```bash
+     npm run build
+     ```
+
+---
+
+![Frontend Flowchart](images/web_flowchart.png)
+
+---
+
+## **Machine Learning Module Documentation**
 
 ### **Overview**
 

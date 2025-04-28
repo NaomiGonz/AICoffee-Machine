@@ -1,5 +1,3 @@
----
-
 # **README_SOFTWARE.md** – AI Coffee Machine Project
 
 ## **Table of Contents**

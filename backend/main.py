@@ -216,29 +216,33 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "128.197.180.251
             # Generate optimized commands matching the logged output
             def generate_optimized_commands(brew_data, cup_size_oz):
                 """
-                Generates an optimized command sequence matching updated grinder ramp-down rules (no cleaning sweep).
+                Generates an optimized command sequence with dynamic grinder RPM capped at 3600
+                and slow grinder ramp-down before brewing.
                 """
                 if cup_size_oz == 3:
                     water_volume_ml = 89
                     flow_rate_mlps = max(2.5, 3.0)
                     drum_rpm = 3600
-                    grinder_rpm = 5000
                 elif cup_size_oz == 7:
                     water_volume_ml = 207
                     flow_rate_mlps = 5.0
                     drum_rpm = 3300
-                    grinder_rpm = 6000
-                else:
+                else:  # 10 oz
                     water_volume_ml = 296
                     flow_rate_mlps = min(7.0, 8.0)
                     drum_rpm = 3000
-                    grinder_rpm = 7000
 
                 brew_type = brew_data.get('coffee_type', 'pour_over').lower()
+
+                # Dynamic grinder RPM based on brew type (but capped)
                 if 'espresso' in brew_type or 'latte' in brew_type:
                     grinder_rpm = 8000
                 elif 'french_press' in brew_type:
                     grinder_rpm = 3000
+                else:
+                    grinder_rpm = 5000
+
+                grinder_rpm = min(grinder_rpm, 3600)  # Always cap at 3600
 
                 temperature_c = brew_data.get('water_temperature_c', 92)
                 if temperature_c >= 94:
@@ -250,7 +254,7 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "128.197.180.251
                 else:
                     heat_power = 95
 
-                flow_rate_mlps = max(2.5, min(flow_rate_mlps, 8.0))  # Ensure >= 2.5
+                flow_rate_mlps = max(2.5, min(flow_rate_mlps, 8.0))  # Ensure flow is between 2.5 and 8.0
 
                 servo_commands = []
                 bean_servo_map = {}
@@ -275,7 +279,7 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "128.197.180.251
                     delay_sec = 4 * (time_sec * 0.61)
                     commands.append(f"D-{int(delay_sec * 1000)}")
 
-                # Now do the slow grinder ramp-down
+                # Grinder slow ramp-down sequence
                 commands.extend([
                     "G-3600",
                     "D-5000",
@@ -290,7 +294,7 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "128.197.180.251
                     "G-0",
                 ])
 
-                # Then continue brewing
+                # Brewing process
                 commands.extend([
                     f"R-{drum_rpm}",
                     "D-3000",
@@ -300,10 +304,11 @@ async def generate_brew(request: BrewRequest, machine_ip: str = "128.197.180.251
                     "R-20000",
                     "D-84000",
                     "H-0",
-                    "R-0"
+                    "R-0",
                 ])
 
                 return commands
+
             
             # Generate the optimized command sequence
             optimized_commands = generate_optimized_commands(brew_json, request.serving_size)

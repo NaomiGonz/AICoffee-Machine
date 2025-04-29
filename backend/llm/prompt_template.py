@@ -69,7 +69,7 @@ def extract_preferences_from_feedback(brew_history):
 def build_system_prompt(available_beans, feedback_brews=None):
     """
     Builds the system prompt for the LLM, dynamically including brewing parameters 
-    and respecting the updated grinder ramp-down logic.
+    and respecting grinder max RPM (capped at 3600) and slow grinder ramp-down sequence.
     """
     bean_descriptions = []
     for bean in available_beans:
@@ -118,11 +118,14 @@ def build_system_prompt(available_beans, feedback_brews=None):
     elif brew_strength == "mild":
         flow_rate_mlps = 8.0
 
-    grinder_rpm = 5000
-    if brew_strength == "strong":
+    # --- Dynamic Grinder RPM based on brew type ---
+    grinder_rpm = 5000  # default
+    if "espresso" in user_pref_summary or "latte" in user_pref_summary:
         grinder_rpm = 8000
-    elif brew_strength == "mild":
+    elif "french_press" in user_pref_summary:
         grinder_rpm = 3000
+    # Cap grinder RPM at 3600
+    grinder_rpm = min(grinder_rpm, 3600)
 
     colombian_dispense_time = round(colombian_weight / 0.61, 1)
     brazil_dispense_time = round(brazil_weight / 0.61, 1)
@@ -146,7 +149,7 @@ You are a coffee brewing assistant. Your job is to generate JSON brew configurat
 
 6. Flow rate must be at least 2.5 mL/s.
 
-When generating the machine_code.commands array, follow this grinder sequence AFTER dispensing beans:
+When generating the machine_code.commands array, after dispensing beans, slow the grinder down by:
 
 - Set grinder RPM to 3600 → wait 5 sec
 - Set grinder RPM to 3000 → wait 5 sec
@@ -155,7 +158,7 @@ When generating the machine_code.commands array, follow this grinder sequence AF
 - Set grinder RPM to 1250 → wait 30 sec
 - Turn grinder off (G-0)
 
-Follow normal brewing commands after grinder off.
+Then continue with drum spin, heating, and brewing.
 
 Output strictly in JSON format.
 Example (core template):
@@ -187,7 +190,7 @@ Example (core template):
       "D-{int(colombian_dispense_time * 1000)}",
       "S-B-{brazil_dispense_time}",
       "D-{int(brazil_dispense_time * 1000)}",
-      
+
       "G-3600",
       "D-5000",
       "G-3000",
@@ -199,7 +202,7 @@ Example (core template):
       "G-1250",
       "D-30000",
       "G-0",
-      
+
       "R-3300",
       "D-3000",
       "H-{heating_power}",

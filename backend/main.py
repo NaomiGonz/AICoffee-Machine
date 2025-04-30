@@ -19,6 +19,7 @@ import os
 import asyncio
 from process_coffee_bag import router as coffee_bag_router
 from dotenv import load_dotenv
+import time
 
 load_dotenv()
 
@@ -162,6 +163,12 @@ class BrewExecuteRequest(BaseModel):
     brew_id: str
     user_id: str
     machine_ip: str = "128.197.180.251"  # Default machine IP
+
+class GrinderCleanRequest(BaseModel):
+    machine_ip: str = Field(default="128.197.180.251", example="128.197.180.251")
+
+class DrumCleanRequest(BaseModel):
+    machine_ip: str = Field(default="128.197.180.251", example="128.197.180.251")
 
 # ----------------------
 # Brew Route with Auto-Execution
@@ -530,3 +537,103 @@ async def stream_brew_progress(brew_id: str):
         # After 100%, close the stream
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
+# ----------------------
+# Grinder Clean with Auto-Execution
+# ----------------------
+@app.post("/grinder-clean")
+async def clean_grinder(request: GrinderCleanRequest):
+    try:
+        print("🧹 Starting grinder cleaning process with progressive speed increase")
+        
+        # Generate optimized commands for grinder cleaning
+        def generate_grinder_cleaning_commands():
+            """
+            Generates a command sequence for cleaning the grinder.
+            Incrementally increases speed from 1250 to 8000 RPM in steps of 250 RPM,
+            with a 10-second delay between each increase.
+            """
+            commands = []
+            
+            # Progressive speed increase from 1250 to 8000 RPM
+            for rpm in range(1250, 8250, 250):
+                commands.append(f"G-{rpm}")
+                time.sleep(10)  # 10-second delay
+
+            # Progressive speed decrease from 8000 to 1250 RPM
+            for rpm in range(8000, 1000, -250):
+                commands.append(f"G-{rpm}")
+                time.sleep(10)  # 10-second delay
+            
+            # Stop the grinder
+            commands.append("G-0")
+            
+            return commands
+        
+        # Generate the optimized command sequence
+        cleaning_commands = generate_grinder_cleaning_commands()
+        
+        # Send commands to the machine
+        execution_result = send_commands_to_machine(cleaning_commands, request.machine_ip)
+        
+        # Prepare response
+        cleaning_response = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "machine_code": {
+                "commands": cleaning_commands
+            },
+            "execution_result": execution_result,
+            "command_string": format_command_string(cleaning_commands)
+        }
+        
+        print(f"🤖 Machine execution result for grinder cleaning: {execution_result}")
+        return cleaning_response
+            
+    except Exception as e:
+        print("❌ Exception during grinder cleaning:", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+    
+# ----------------------
+# Drum Clean with Auto-Execution
+# ----------------------
+@app.post("/drum-clean")
+async def clean_drum(request: DrumCleanRequest):
+    try:
+        print("🧹 Starting drum cleaning process")
+        
+        # Generate commands for drum cleaning
+        def generate_drum_cleaning_commands():
+            """
+            Generates a command sequence for cleaning the drum.
+            Uses specific preset commands for drum cleaning.
+            """
+            commands = [
+                "P-400-5",
+                "R-15000",
+                "D-60000",
+                "R-0"
+            ]
+            
+            return commands
+        
+        # Generate the command sequence
+        cleaning_commands = generate_drum_cleaning_commands()
+        
+        # Send commands to the machine
+        execution_result = send_commands_to_machine(cleaning_commands, request.machine_ip)
+        
+        # Prepare response
+        cleaning_response = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "machine_code": {
+                "commands": cleaning_commands
+            },
+            "execution_result": execution_result,
+            "command_string": format_command_string(cleaning_commands)
+        }
+        
+        print(f"🤖 Machine execution result for drum cleaning: {execution_result}")
+        return cleaning_response
+            
+    except Exception as e:
+        print("❌ Exception during drum cleaning:", str(e))
+        raise HTTPException(status_code=500, detail=str(e))

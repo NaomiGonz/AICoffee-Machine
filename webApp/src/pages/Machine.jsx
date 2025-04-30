@@ -8,8 +8,7 @@ import { useAuth } from "../tools/AuthProvider.jsx";
 
 const Machine = () => {
   const { currentUser, userLoggedIn } = useAuth();
-  const [deviceConnected, setDeviceConnected] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("Not connected");
+  const [statusMessage, setStatusMessage] = useState("Connected to AI Coffee Machine");
   const [settings, setSettings] = useState({
     temperature: 92,
     pressure: 9,
@@ -23,10 +22,22 @@ const Machine = () => {
   
   const [beanSlots, setBeanSlots] = useState(defaultBeanConfig);
   const [log, setLog] = useState([]);
-  const socketRef = useRef(null);
   const [activeScanSlot, setActiveScanSlot] = useState(null);
   const [savingStatus, setSavingStatus] = useState("");
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [showCleanConfirmation, setShowCleanConfirmation] = useState(false);
+  const [cleaningInProgress, setCleaningInProgress] = useState(false);
+  const [cleaningProgress, setCleaningProgress] = useState(0);
+  const [cleaningStepNumber, setCleaningStepNumber] = useState(0);
+  const [cleaningTotalSteps, setCleaningTotalSteps] = useState(0);
+  
+  // Drum cleaning state variables
+  const [drumCleaningInProgress, setDrumCleaningInProgress] = useState(false);
+  const [drumCleaningProgress, setDrumCleaningProgress] = useState(0);
+  const [showDrumCleanConfirmation, setShowDrumCleanConfirmation] = useState(false);
+
+  // Assume we're always connected to the machine
+  const deviceConnected = true;
 
   useEffect(() => {
     if (!currentUser || !userLoggedIn) return;
@@ -89,6 +100,58 @@ const Machine = () => {
     return () => unsubscribe();
   }, [currentUser, userLoggedIn]);
 
+  // Prevent page navigation during cleaning
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (cleaningInProgress || drumCleaningInProgress) {
+        // Standard way to show a confirmation dialog when leaving a page
+        e.preventDefault();
+        e.returnValue = "Cleaning is in progress. Are you sure you want to leave?";
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [cleaningInProgress, drumCleaningInProgress]);
+
+  // Simulate cleaning progress updates
+  useEffect(() => {
+    let progressTimer;
+    
+    if (cleaningInProgress) {
+      // Calculate total steps (increase + decrease + 1 for stop)
+      const stepsIncrease = (8000 - 1250) / 250 + 1;
+      const stepsDecrease = (8000 - 1250) / 250 + 1;
+      const totalSteps = stepsIncrease + stepsDecrease + 1;
+      setCleaningTotalSteps(totalSteps);
+      
+      let currentStep = 0;
+      
+      progressTimer = setInterval(() => {
+        currentStep += 1;
+        setCleaningStepNumber(currentStep);
+        const progressPercent = Math.round((currentStep / totalSteps) * 100);
+        setCleaningProgress(progressPercent);
+        
+        setLog((prev) => [...prev.slice(-19), `🧹 Cleaning step ${currentStep}/${totalSteps}: ${progressPercent}%`]);
+        
+        if (currentStep >= totalSteps) {
+          clearInterval(progressTimer);
+          setCleaningInProgress(false);
+          setLog((prev) => [...prev.slice(-19), "🧹 Grinder cleaning completed"]);
+        }
+      }, 10000); // Update every 10 seconds
+    }
+    
+    return () => {
+      if (progressTimer) clearInterval(progressTimer);
+    };
+  }, [cleaningInProgress]);
+
   const saveBeanConfiguration = async (updatedSlots) => {
     if (!currentUser || !userLoggedIn) {
       console.log("Cannot save: User not logged in");
@@ -144,46 +207,7 @@ const Machine = () => {
     setLog((prev) => [...prev.slice(-19), `📷 Scanned bean info for slot ${slotIndex}: ${beanInfo.name}`]);
   };
 
-  const handleConnect = () => {
-    if (socketRef.current) return;
-
-    const ws = new WebSocket("ws://128.197.180.251");
-
-    ws.onopen = () => {
-      setDeviceConnected(true);
-      setStatusMessage("Connected to AI Coffee Machine");
-      setLog((prev) => [...prev, "Connected to ESP32 via WebSocket"]);
-    };
-
-    ws.onmessage = (event) => {
-      setLog((prev) => [...prev.slice(-19), `📡 ${event.data}`]);
-    };
-
-    ws.onerror = (err) => {
-      console.error("WebSocket Error:", err);
-      setStatusMessage("Connection error");
-    };
-
-    ws.onclose = () => {
-      setDeviceConnected(false);
-      setStatusMessage("Disconnected");
-      socketRef.current = null;
-      setLog((prev) => [...prev, "Connection closed"]);
-    };
-
-    socketRef.current = ws;
-  };
-
-  const updateSetting = (key, value) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
-  };
-
   const handleManualBrew = () => {
-    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
-      alert("Please connect to the machine first.");
-      return;
-    }
-
     const payload = {
       type: "brew",
       temperature: settings.temperature,
@@ -192,7 +216,7 @@ const Machine = () => {
       beanSlots,
     };
 
-    socketRef.current.send(JSON.stringify(payload));
+    console.log("Sending brew command:", payload);
     setLog((prev) => [
       ...prev,
       `▶️ Sent brew command: Temp=${settings.temperature}°C, Pressure=${settings.pressure} bar, Grind=${settings.grindSize}`,
@@ -200,13 +224,75 @@ const Machine = () => {
     alert("☕ Manual brew started!");
   };
 
-  useEffect(() => {
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.close();
-      }
-    };
-  }, []);
+  const startGrinderCleaning = () => {
+    // Make API call to start grinder cleaning
+    fetch('http://localhost:8000/grinder-clean', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ machine_ip: "128.197.180.251" }),
+    })
+      .then(response => response.json())
+      .then(data => {
+        console.log('Grinder cleaning started:', data);
+        setLog((prev) => [...prev.slice(-19), "🧹 Grinder cleaning cycle started"]);
+        setCleaningInProgress(true);
+        setCleaningProgress(0);
+        setCleaningStepNumber(0);
+        setShowCleanConfirmation(false);
+      })
+      .catch(error => {
+        console.error('Error starting grinder cleaning:', error);
+        setLog((prev) => [...prev.slice(-19), `❌ Error starting grinder cleaning: ${error.message}`]);
+        alert("Failed to start grinder cleaning. Please try again.");
+        setShowCleanConfirmation(false);
+      });
+  };
+
+  const startDrumCleaning = () => {
+    // Make API call to start drum cleaning
+    fetch('http://localhost:8000/drum-clean', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ machine_ip: "128.197.180.251" }),
+    })
+      .then(response => response.json())
+      .then(data => {
+        console.log('Drum cleaning started:', data);
+        setLog((prev) => [...prev.slice(-19), "🧹 Drum cleaning cycle started"]);
+        setDrumCleaningInProgress(true);
+        setDrumCleaningProgress(0);
+        setShowDrumCleanConfirmation(false);
+        
+        // Simulate progress for the 4-step cleaning process
+        const totalTime = 20000; // Estimate total time in ms
+        const steps = 4; // P-400-5, R-15000, D-60000, R-0
+        let currentStep = 0;
+        
+        const progressTimer = setInterval(() => {
+          currentStep += 1;
+          const progressPercent = Math.round((currentStep / steps) * 100);
+          setDrumCleaningProgress(progressPercent);
+          
+          setLog((prev) => [...prev.slice(-19), `🧹 Drum cleaning step ${currentStep}/${steps}: ${progressPercent}%`]);
+          
+          if (currentStep >= steps) {
+            clearInterval(progressTimer);
+            setDrumCleaningInProgress(false);
+            setLog((prev) => [...prev.slice(-19), "🧹 Drum cleaning completed"]);
+          }
+        }, totalTime / steps); // Update based on estimated time per step
+      })
+      .catch(error => {
+        console.error('Error starting drum cleaning:', error);
+        setLog((prev) => [...prev.slice(-19), `❌ Error starting drum cleaning: ${error.message}`]);
+        alert("Failed to start drum cleaning. Please try again.");
+        setShowDrumCleanConfirmation(false);
+      });
+  };
 
   // Helper function for nicer time format
   const formatDateTime = (date) => {
@@ -306,6 +392,153 @@ const Machine = () => {
               <p>Loading last updated time...</p>
             )}
           </div>
+        </section>
+
+        {/* Grinder Cleaning Section */}
+        <section className="mb-8 bg-white p-6 rounded-lg border border-[var(--color-espresso)] shadow-sm">
+          <h2 className="text-xl font-semibold text-[var(--color-roast)] mb-4">
+            Grinder Maintenance
+          </h2>
+          
+          <div className="mb-4">
+            <p className="text-gray-700 mb-2">
+              Run the grinder cleaning cycle to remove residual coffee particles and oils. 
+              This process will gradually increase the grinder speed from 1250 to 8000 RPM and then decrease 
+              back to 1250 RPM in 250 RPM increments.
+            </p>
+          </div>
+
+          {!cleaningInProgress ? (
+            <Button
+              text="Run Grinder Cleaning Cycle"
+              onClick={() => setShowCleanConfirmation(true)}
+              color="#CF4137"
+              className="w-full"
+            />
+          ) : (
+            <div>
+              <div className="mb-2 flex justify-between">
+                <span className="text-sm font-medium">Cleaning Progress</span>
+                <span className="text-sm font-medium">{cleaningProgress}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-4 mb-4">
+                <div 
+                  className="bg-[var(--color-roast)] h-4 rounded-full" 
+                  style={{ width: `${cleaningProgress}%` }}
+                ></div>
+              </div>
+              <p className="text-center text-amber-600 font-semibold">
+                Cleaning in progress - Please do not leave this page until completion
+              </p>
+            </div>
+          )}
+
+          {/* Confirmation Dialog */}
+          {showCleanConfirmation && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                <h3 className="text-lg font-semibold mb-4">Confirm Grinder Cleaning</h3>
+                <p className="mb-4">
+                  This will start a full grinder cleaning cycle that takes approximately 5 minutes to complete.
+                  During this time:
+                </p>
+                <ul className="list-disc pl-5 mb-4 text-sm">
+                  <li>The grinder will run at various speeds (1250-8000 RPM)</li>
+                  <li>You will not be able to leave this page</li>
+                  <li>No beans should be in the hopper</li>
+                  <li><strong>This process cannot be canceled once started</strong></li>
+                </ul>
+                <p className="mb-6 font-semibold">Are you sure you want to proceed?</p>
+                <div className="flex justify-end space-x-3">
+                  <button 
+                    className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                    onClick={() => setShowCleanConfirmation(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    className="px-4 py-2 rounded bg-[var(--color-roast)] text-white hover:bg-opacity-90"
+                    onClick={startGrinderCleaning}
+                  >
+                    Start Cleaning
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* Drum Cleaning Section */}
+        <section className="mb-8 bg-white p-6 rounded-lg border border-[var(--color-espresso)] shadow-sm">
+          <h2 className="text-xl font-semibold text-[var(--color-roast)] mb-4">
+            Drum Maintenance
+          </h2>
+          
+          <div className="mb-4">
+            <p className="text-gray-700 mb-2">
+              Run the drum cleaning cycle to remove residual coffee oils and particles from the roasting drum.
+              This process will execute a specialized cleaning sequence to ensure proper maintenance of your roaster.
+            </p>
+          </div>
+
+          {!drumCleaningInProgress ? (
+            <Button
+              text="Run Drum Cleaning Cycle"
+              onClick={() => setShowDrumCleanConfirmation(true)}
+              color="#8e7cc3"
+              className="w-full"
+            />
+          ) : (
+            <div>
+              <div className="mb-2 flex justify-between">
+                <span className="text-sm font-medium">Cleaning Progress</span>
+                <span className="text-sm font-medium">{drumCleaningProgress}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-4 mb-4">
+                <div 
+                  className="bg-[var(--color-roast)] h-4 rounded-full" 
+                  style={{ width: `${drumCleaningProgress}%` }}
+                ></div>
+              </div>
+              <p className="text-center text-amber-600 font-semibold">
+                Drum cleaning in progress - Please do not leave this page until completion
+              </p>
+            </div>
+          )}
+
+          {/* Confirmation Dialog */}
+          {showDrumCleanConfirmation && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                <h3 className="text-lg font-semibold mb-4">Confirm Drum Cleaning</h3>
+                <p className="mb-4">
+                  This will start a full drum cleaning cycle that takes approximately 5 minutes to complete.
+                  During this time:
+                </p>
+                <ul className="list-disc pl-5 mb-4 text-sm">
+                  <li>The drum will execute a preset cleaning sequence</li>
+                  <li>You will not be able to leave this page</li>
+                  <li>Ensure the drum is empty before starting</li>
+                  <li><strong>This process cannot be canceled once started</strong></li>
+                </ul>
+                <p className="mb-6 font-semibold">Are you sure you want to proceed?</p>
+                <div className="flex justify-end space-x-3">
+                  <button 
+                    className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                    onClick={() => setShowDrumCleanConfirmation(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    className="px-4 py-2 rounded bg-[var(--color-roast)] text-white hover:bg-opacity-90"
+                    onClick={startDrumCleaning}
+                  >
+                    Start Cleaning
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
       </div>
     </div>

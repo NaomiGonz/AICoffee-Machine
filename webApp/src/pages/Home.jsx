@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { getAuth } from "firebase/auth";
 import NavBar from "../components/NavBar.jsx";
 import CoffeeCard from "../components/CoffeeCard.jsx";
@@ -11,6 +11,9 @@ import arm from "../assets/amer.jpeg";
 import ken from "../assets/ken.webp";
 import bra from "../assets/bra.webp";
 import sam from "../assets/sam.webp";
+
+// Import microphone icon
+import { Mic, MicOff } from "lucide-react";
 
 const featuredCoffees = [
   { id: 1, name: "Colombian Roast", image: col, description: "Rich and bold" },
@@ -44,9 +47,79 @@ const Home = () => {
   const [brewProgress, setBrewProgress] = useState(0);
   const [brewProgressSource, setBrewProgressSource] = useState(null);
   const [isSendingToMachine, setIsSendingToMachine] = useState(false);
+  
+  // New state for speech recognition
+  const [isListening, setIsListening] = useState(false);
+  const [speechRecognitionSupported, setSpeechRecognitionSupported] = useState(false);
+  const recognitionRef = useRef(null);
 
   const auth = getAuth();
   const user = auth.currentUser;
+
+  // Initialize speech recognition
+  useEffect(() => {
+    // Check if the browser supports speech recognition
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      setSpeechRecognitionSupported(true);
+      
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+      
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setQueryInput(transcript);
+        stopListening();
+      };
+      
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error', event.error);
+        stopListening();
+      };
+      
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+      
+      recognitionRef.current = recognition;
+    }
+  }, []);
+
+  // Start listening function
+  const startListening = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (error) {
+        console.error('Failed to start speech recognition:', error);
+      }
+    }
+  };
+
+  // Stop listening function
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+        setIsListening(false);
+      } catch (error) {
+        console.error('Failed to stop speech recognition:', error);
+      }
+    }
+  };
+
+  // Toggle listening state
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
 
   const formatTimestamp = (timestamp) => {
     try {
@@ -321,21 +394,47 @@ const Home = () => {
                   Tell us what kind of coffee you want
                 </label>
                 <div className="flex flex-col gap-2">
-                  <input
-                    id="coffee-query"
-                    type="text"
-                    autoComplete="off"
-                    className="w-full px-3 py-2 md:px-4 md:py-3 rounded-md border border-gray-300 focus:ring-[var(--color-hgreen)] focus:border-[var(--color-hgreen)] text-base"
-                    placeholder="How would you like your coffee?"
-                    value={queryInput}
-                    onChange={(e) => setQueryInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault(); // prevent accidental form submits
-                        handleNaturalLanguageQuery();
-                      }
-                    }}
-                  />
+                  <div className="relative flex items-center">
+                    <input
+                      id="coffee-query"
+                      type="text"
+                      autoComplete="off"
+                      className="w-full px-3 py-2 md:px-4 md:py-3 rounded-md border border-gray-300 focus:ring-[var(--color-hgreen)] focus:border-[var(--color-hgreen)] text-base"
+                      placeholder="How would you like your coffee?"
+                      value={queryInput}
+                      onChange={(e) => setQueryInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault(); // prevent accidental form submits
+                          handleNaturalLanguageQuery();
+                        }
+                      }}
+                    />
+                    {/* Voice input button */}
+                    {speechRecognitionSupported && (
+                      <button
+                        onClick={toggleListening}
+                        disabled={isLoading || isSendingToMachine}
+                        className={`absolute right-3 p-2 rounded-full transition-colors ${
+                          isListening 
+                            ? 'bg-red-500 text-white' 
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        } ${(isLoading || isSendingToMachine) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        aria-label={isListening ? "Stop listening" : "Start voice input"}
+                        title={isListening ? "Stop listening" : "Start voice input"}
+                      >
+                        {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Listening indicator */}
+                  {isListening && (
+                    <div className="flex items-center mt-2 text-sm text-red-500 animate-pulse">
+                      <span className="mr-2">●</span> Listening... Speak your coffee request
+                    </div>
+                  )}
+                  
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleNaturalLanguageQuery()}
